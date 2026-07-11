@@ -1116,7 +1116,16 @@ function App() {
               style={{ 
                 display: 'block', 
                 boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-                border: '1px solid rgba(255,255,255,0.1)'
+                border: '1px solid rgba(255,255,255,0.1)',
+                backgroundImage: `
+                  linear-gradient(45deg, #f0f2f5 25%, transparent 25%), 
+                  linear-gradient(-45deg, #f0f2f5 25%, transparent 25%), 
+                  linear-gradient(45deg, transparent 75%, #f0f2f5 75%), 
+                  linear-gradient(-45deg, transparent 75%, #f0f2f5 75%)
+                `,
+                backgroundSize: '16px 16px',
+                backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
+                backgroundColor: '#ffffff'
               }}
             />
 
