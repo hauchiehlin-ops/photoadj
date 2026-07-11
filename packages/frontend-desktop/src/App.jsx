@@ -41,8 +41,12 @@ import {
 
 // Sample Base64 image so the app is instantly active upon launching
 import { DEFAULT_SAMPLE_IMAGE } from './sampleImage';
+import { translations, languages } from './translations';
 
 function App() {
+  const [language, setLanguage] = useState('en');
+  const t = translations[language];
+
   const [activeTab, setActiveTab] = useState('adjust'); // adjust, print, ai
   const [activeTool, setActiveTool] = useState('pan'); // pan, crop, markup, signature
   const [imageSrc, setImageSrc] = useState(null);
@@ -77,7 +81,7 @@ function App() {
     setDpi(clamped);
     setDpiInputText(String(clamped));
     setDpiPreset('CUSTOM');
-    setAiStatus(`已自動適配最佳印刷解析度: ${clamped} DPI (1:1 像素無損輸出)`);
+    setAiStatus(t.alerts.autoMatchedDpi.replace('{dpi}', clamped));
   };
   const [selectedPreset, setSelectedPreset] = useState('A4');
   const [showBleed, setShowBleed] = useState(true);
@@ -447,7 +451,7 @@ function App() {
   // Print preset selection calculation with orientation adaptation (swaps width/height if needed)
   const currentPreset = (() => {
     const raw = selectedPreset === 'CUSTOM'
-      ? { name: '自訂規格', widthMm: customWidth, heightMm: customHeight }
+      ? { name: t.printPanel.customSize, widthMm: customWidth, heightMm: customHeight }
       : PRINT_SIZES[selectedPreset];
     if (!raw) return null;
     const isCurrentlyLandscape = raw.widthMm > raw.heightMm;
@@ -493,7 +497,7 @@ function App() {
       img.src = prevImgSrc;
 
       setSelectionRect(null);
-      setAiStatus('已復原上一步操作');
+      setAiStatus(t.alerts.undoSuccess);
     }
   };
 
@@ -516,7 +520,7 @@ function App() {
       img.src = nextImgSrc;
 
       setSelectionRect(null);
-      setAiStatus('已重做下一步操作');
+      setAiStatus(t.alerts.redoSuccess);
     }
   };
 
@@ -531,10 +535,10 @@ function App() {
       setExposure(0.0);
       setImageSrc(bakedDataUrl);
       pushHistory(bakedDataUrl);
-      setAiStatus('色調調整已成功套用！');
+      setAiStatus(t.alerts.toneApplied);
     } catch (err) {
       console.error(err);
-      alert(`套用調色失敗: ${err.message}`);
+      alert(t.alerts.toneFailed.replace('{err}', err.message));
     }
   };
 
@@ -548,13 +552,13 @@ function App() {
     setSelectionRect(null);
     setHasCutout(false);
     setHasRedacted(false);
-    setAiStatus('檔案已關閉。');
+    setAiStatus(t.alerts.fileClosed);
   };
 
   // Image Editing - Copy selected region
   const handleCopy = () => {
     if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !imageSrc) {
-      alert('請先在畫布上框選一個區域再進行複製。');
+      alert(t.alerts.copyPrompt);
       return;
     }
     const tempCanvas = document.createElement('canvas');
@@ -574,7 +578,7 @@ function App() {
         w: selectionRect.w,
         h: selectionRect.h
       });
-      setAiStatus('已複製選取區域！');
+      setAiStatus(t.alerts.copySuccess);
     };
     img.src = imageSrc;
   };
@@ -583,11 +587,11 @@ function App() {
   const handleDelete = () => {
     if (pastedLayer) {
       setPastedLayer(null);
-      setAiStatus('已取消並移除貼上圖層！');
+      setAiStatus(t.alerts.pasteCancel);
       return;
     }
     if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !imageSrc) {
-      alert('請先在畫布上框選一個區域再進行刪除。');
+      alert(t.alerts.deletePrompt);
       return;
     }
     const tempCanvas = document.createElement('canvas');
@@ -675,7 +679,7 @@ function App() {
       const clearedDataUrl = tempCanvas.toDataURL();
       setImageSrc(clearedDataUrl);
       setSelectionRect(null);
-      setAiStatus('已刪除選取區域並使用周邊色彩補平！');
+      setAiStatus(t.alerts.deleteSuccess);
       pushHistory(clearedDataUrl);
     };
     img.src = imageSrc;
@@ -684,7 +688,7 @@ function App() {
   // Image Editing - Blur selected region (Manual Privacy Protection Mask)
   const handleBlurSelection = () => {
     if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !imageSrc) {
-      alert('請先在畫布上框選一個區域再進行模糊。');
+      alert(t.alerts.blurPrompt);
       return;
     }
     const tempCanvas = document.createElement('canvas');
@@ -706,7 +710,7 @@ function App() {
       const blurredDataUrl = tempCanvas.toDataURL();
       setImageSrc(blurredDataUrl);
       setSelectionRect(null);
-      setAiStatus('已模糊框選區域！');
+      setAiStatus(t.alerts.blurSuccess);
       pushHistory(blurredDataUrl);
     };
     img.src = imageSrc;
@@ -715,7 +719,7 @@ function App() {
   // Image Editing - Paste copied region
   const handlePaste = () => {
     if (!clipboard || !imageSrc) {
-      alert('剪貼簿目前為空，請先複製一個區域。');
+      alert(t.alerts.pastePrompt);
       return;
     }
     // Paste initially at the center of the image
@@ -729,7 +733,7 @@ function App() {
       w: clipboard.w,
       h: clipboard.h
     });
-    setAiStatus('已貼上懸浮影像！可用滑鼠在畫布上自由拖曳移動它，最後點選確認貼上。');
+    setAiStatus(t.alerts.pasteReady);
   };
 
   const handlePastedLayerMouseDown = (e) => {
@@ -757,7 +761,7 @@ function App() {
         const combinedDataUrl = tempCanvas.toDataURL();
         setImageSrc(combinedDataUrl);
         setPastedLayer(null);
-        setAiStatus('已完成貼上與合併影像！');
+        setAiStatus(t.alerts.pasteConfirm);
         pushHistory(combinedDataUrl);
       };
       pasteImg.src = pastedLayer.dataUrl;
@@ -768,9 +772,9 @@ function App() {
   // AI Feature - Background Cutout
   const runAiCutout = () => {
     if (!imageSrc || !engineRef.current) return;
-    setAiStatus('載入 ONNX 去背模型...');
+    setAiStatus(t.alerts.loadOnnx);
     setTimeout(() => {
-      setAiStatus('辨識主體邊緣並執行透明度遮罩中...');
+      setAiStatus(t.alerts.recognizingCutout);
       setTimeout(() => {
         // 1. Create a helper 2D canvas at the image size
         const tempCanvas = document.createElement('canvas');
@@ -784,7 +788,7 @@ function App() {
           performLocalCutout(tempCanvas);
           const cutoutDataUrl = tempCanvas.toDataURL();
           setImageSrc(cutoutDataUrl);
-          setAiStatus('去背完成 (本地 WebGPU 加速)');
+          setAiStatus(t.alerts.cutoutSuccess);
           setHasCutout(true);
           pushHistory(cutoutDataUrl);
         };
@@ -796,11 +800,11 @@ function App() {
   // AI Feature - Privacy Redaction
   const runAiRedact = () => {
     if (!imageSrc || !engineRef.current) return;
-    setAiStatus('掃描敏感個資中 (OCR: 身分證、卡號、人臉)...');
+    setAiStatus(t.alerts.scanningOcr);
     setTimeout(() => {
       // Realistically inform the user that no typical credentials format was found in this abstract text
-      alert("【DevPixel AI 隱私防護掃描】\n\n掃描完畢！在此文件中未偵測到典型的「身分證字號、信用卡號、或人臉」。\n\n💡 提示：您可以使用左側的「區域框選工具 (M)」框住 any 敏感個資（例如數字或關鍵字），接著在右側「影像編輯」分頁點選「模糊框選區域」進行手動安全遮罩。");
-      setAiStatus('掃描完成，未偵測到敏感個資。');
+      alert(t.alerts.scanOcrResultAlert);
+      setAiStatus(t.alerts.scanOcrSuccess);
     }, 1000);
   };
 
@@ -809,7 +813,7 @@ function App() {
     if (!imageSrc) return;
 
     try {
-      setAiStatus('正在進行色彩轉換與印刷封裝...');
+      setAiStatus(t.alerts.convertingColor);
       
       const img = new Image();
       img.onload = async () => {
@@ -852,7 +856,7 @@ function App() {
               link.download = `${imageInfo.name.split('.')[0]}_export.png`;
               link.click();
               URL.revokeObjectURL(url);
-              setAiStatus('sRGB PNG 匯出成功！');
+              setAiStatus(t.alerts.pngExportSuccess);
             }, 'image/png');
             return;
           }
@@ -866,19 +870,23 @@ function App() {
           link.click();
           URL.revokeObjectURL(url);
           
-          setAiStatus(`${format} 匯出成功！`);
-          alert(`【DevPixel 印刷匯出成功】\n檔名: ${filename}\n尺寸: ${currentPreset.name}\n解析度: ${dpi} DPI\n位元深度: 8-bit CMYK\n\n檔案已完美包含輸出目的描述檔 (Fogra39) 與印刷裁切框設定！`);
+          setAiStatus(t.alerts.exportSuccess.replace('{format}', format));
+          alert(t.alerts.exportSuccessAlert
+            .replace('{filename}', filename)
+            .replace('{size}', currentPreset.name)
+            .replace('{dpi}', dpi)
+          );
         } catch (err) {
           console.error(err);
-          setAiStatus(`匯出失敗: ${err.message}`);
-          alert(`匯出失敗: ${err.message}`);
+          setAiStatus(t.alerts.exportFailed.replace('{err}', err.message));
+          alert(t.alerts.exportFailed.replace('{err}', err.message));
         }
       };
       img.src = imageSrc;
     } catch (err) {
       console.error(err);
-      setAiStatus(`匯出失敗: ${err.message}`);
-      alert(`匯出失敗: ${err.message}`);
+      setAiStatus(t.alerts.exportFailed.replace('{err}', err.message));
+      alert(t.alerts.exportFailed.replace('{err}', err.message));
     }
   };
 
@@ -897,7 +905,7 @@ function App() {
             <h1 className="mono-text" style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '1px', margin: 0 }}>
               DEV<span className="title-cyan">PIXEL</span>
             </h1>
-            <p style={{ fontSize: '9px', color: 'var(--text-secondary)', marginTop: '-2px' }}>v0.1.0 (STUDIO MODE)</p>
+            <p style={{ fontSize: '9px', color: 'var(--text-secondary)', marginTop: '-2px' }}>v0.1.0 {t.studioMode}</p>
           </div>
         </div>
 
@@ -909,7 +917,7 @@ function App() {
               className="cyber-btn" 
               onClick={handleUndo} 
               disabled={historyIndex <= 0}
-              title="復原 (Cmd+Z)"
+              title={t.tooltips.undo}
               style={{ padding: '6px 8px' }}
             >
               <Undo2 size={13} />
@@ -918,7 +926,7 @@ function App() {
               className="cyber-btn" 
               onClick={handleRedo} 
               disabled={historyIndex >= history.length - 1}
-              title="重做 (Cmd+Shift+Z)"
+              title={t.tooltips.redo}
               style={{ padding: '6px 8px' }}
             >
               <Redo2 size={13} />
@@ -928,7 +936,7 @@ function App() {
           {/* Zoom controls */}
           {imageSrc && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '8px' }}>
-              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => { hasManuallyAdjustedRef.current = true; setZoom(Math.max(zoom / 1.2, 0.1)); }} title="縮小">-</button>
+              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => { hasManuallyAdjustedRef.current = true; setZoom(Math.max(zoom / 1.2, 0.1)); }} title={t.tooltips.zoomOut}>-</button>
               <input 
                 type="range" 
                 min="0.1" 
@@ -938,7 +946,7 @@ function App() {
                 onChange={(e) => { hasManuallyAdjustedRef.current = true; setZoom(Number(e.target.value)); }} 
                 style={{ width: '70px', height: '3px', accentColor: 'var(--accent-cyan)' }}
               />
-              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => { hasManuallyAdjustedRef.current = true; setZoom(Math.min(zoom * 1.2, 8.0)); }} title="放大">+</button>
+              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => { hasManuallyAdjustedRef.current = true; setZoom(Math.min(zoom * 1.2, 8.0)); }} title={t.tooltips.zoomIn}>+</button>
               <span className="mono-text" style={{ fontSize: '11px', minWidth: '35px', textAlign: 'right' }}>
                 {Math.round(zoom * 100)}%
               </span>
@@ -951,33 +959,56 @@ function App() {
               fitImageToViewport(imageInfo.width, imageInfo.height);
             }
           }}>
-            <Maximize2 size={14} /> 適應畫布
+            <Maximize2 size={14} /> {t.fitCanvas}
           </span>
           <button className="cyber-btn-purple" onClick={resetAdjustments}>
-            <RotateCcw size={14} /> 重設調整
+            <RotateCcw size={14} /> {t.resetAdjustments}
           </button>
         </div>
 
         {/* Collapsed Export Dropdown Panel */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Language Selector */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: '6px' }}>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Language / 語系</span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="mono-text"
+              style={{
+                background: 'var(--bg-cyber-dark)',
+                color: 'var(--accent-cyan)',
+                border: '1px solid var(--border-cyber)',
+                borderRadius: '4px',
+                padding: '2px 4px',
+                fontSize: '12px',
+                outline: 'none'
+              }}
+            >
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>{lang.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>印刷輸出解析度</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t.printResolution}</span>
               <select 
                 value={dpiPreset} 
                 onChange={(e) => handleDpiPresetChange(e.target.value)} 
                 className="mono-text"
                 style={{ background: 'var(--bg-cyber-dark)', color: 'var(--accent-cyan)', border: '1px solid var(--border-cyber)', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', outline: 'none' }}
               >
-                <option value="72">72 DPI (網頁)</option>
-                <option value="150">150 DPI (普通影印)</option>
-                <option value="300">300 DPI (專業印刷)</option>
-                <option value="CUSTOM">自訂 DPI</option>
+                <option value="72">{t.dpi72}</option>
+                <option value="150">{t.dpi150}</option>
+                <option value="300">{t.dpi300}</option>
+                <option value="CUSTOM">{t.dpiCustom}</option>
               </select>
             </div>
             {dpiPreset === 'CUSTOM' && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '65px' }}>
-                <span style={{ fontSize: '10px', color: 'var(--accent-cyan)' }}>數值</span>
+                <span style={{ fontSize: '10px', color: 'var(--accent-cyan)' }}>{t.dpiValue}</span>
                 <input 
                   type="number" 
                   min={lockMinDpi ? "100" : "10"} 
@@ -1009,7 +1040,7 @@ function App() {
               onClick={() => setShowExportMenu(!showExportMenu)}
               style={{ gap: '6px', padding: '6px 12px' }}
             >
-              <Download size={14} /> 另存與匯出 <ChevronDown size={14} />
+              <Download size={14} /> {t.saveAndExport} <ChevronDown size={14} />
             </button>
 
             {showExportMenu && (
@@ -1034,8 +1065,8 @@ function App() {
                   onClick={() => { triggerExport('PNG (sRGB)'); setShowExportMenu(false); }}
                   style={{ padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}
                 >
-                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>另存一般圖片 (PNG)</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>適用於網頁分享、一般螢幕看圖（sRGB 色彩空間）。</span>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>{t.savePNG}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.savePNGDesc}</span>
                 </div>
 
                 <div style={{ height: '1px', background: 'var(--border-cyber)', margin: '4px 0' }} />
@@ -1045,8 +1076,8 @@ function App() {
                   onClick={() => { triggerExport('TIFF (CMYK)'); setShowExportMenu(false); }}
                   style={{ padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}
                 >
-                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--accent-cyan)' }}>另存普通印相檔 (TIFF)</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>適用於普通影印、沖印店印刷（CMYK 色彩空間）。</span>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--accent-cyan)' }}>{t.saveTIFF}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.saveTIFFDesc}</span>
                 </div>
 
                 <div style={{ height: '1px', background: 'var(--border-cyber)', margin: '4px 0' }} />
@@ -1056,8 +1087,8 @@ function App() {
                   onClick={() => { triggerExport('PDF/X (CMYK)'); setShowExportMenu(false); }}
                   style={{ padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}
                 >
-                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--accent-purple)' }}>另存專業 PDF/X 印刷檔</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>適用於印刷廠、大量出版印製（含 3mm 出血線與色彩宣告）。</span>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--accent-purple)' }}>{t.savePDF}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.savePDFDesc}</span>
                 </div>
 
                 {imageSrc && (
@@ -1068,8 +1099,8 @@ function App() {
                       onClick={() => { closeFile(); setShowExportMenu(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '2px', color: '#ff4d4d' }}
                     >
-                      <span style={{ fontSize: '13px', fontWeight: 'bold' }}>關閉當前檔案 (Close File)</span>
-                      <span style={{ fontSize: '11px', color: '#ff4d4d', opacity: 0.8 }}>清除工作區並回到上傳主畫面。</span>
+                      <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{t.closeFile}</span>
+                      <span style={{ fontSize: '11px', color: '#ff4d4d', opacity: 0.8 }}>{t.closeFileDesc}</span>
                     </div>
                   </>
                 )}
@@ -1084,7 +1115,7 @@ function App() {
         <div 
           className="tool-icon-btn hover-active" 
           onClick={() => fileInputRef.current?.click()}
-          title="開啟新檔案"
+          title={t.tooltips.openFile}
         >
           <Upload size={20} />
         </div>
@@ -1106,7 +1137,7 @@ function App() {
         <div 
           className={`tool-icon-btn hover-active ${activeTool === 'pan' ? 'active' : ''}`}
           onClick={() => setActiveTool('pan')}
-          title="平移與縮放 (H)"
+          title={t.tooltips.panZoom}
         >
           <Maximize2 size={20} style={{ transform: 'rotate(45deg)' }} />
         </div>
@@ -1117,7 +1148,7 @@ function App() {
             setActiveTool('crop');
             setActiveTab('print');
           }}
-          title="印刷尺寸裁切 (C)"
+          title={t.tooltips.crop}
         >
           <Crop size={20} />
         </div>
@@ -1125,7 +1156,7 @@ function App() {
         <div 
           className={`tool-icon-btn hover-active ${activeTool === 'markup' ? 'active' : ''}`}
           onClick={() => setActiveTool('markup')}
-          title="向量標記工具 (A)"
+          title={t.tooltips.markup}
         >
           <Sliders size={20} style={{ transform: 'rotate(90deg)' }} />
         </div>
@@ -1133,7 +1164,7 @@ function App() {
         <div 
           className={`tool-icon-btn hover-active ${activeTool === 'signature' ? 'active' : ''}`}
           onClick={() => setActiveTool('signature')}
-          title="指紋安全簽名 (S)"
+          title={t.tooltips.signature}
         >
           <Fingerprint size={20} />
         </div>
@@ -1144,7 +1175,7 @@ function App() {
             setActiveTool('select');
             setActiveTab('edit');
           }}
-          title="區域框選工具 (M)"
+          title={t.tooltips.marquee}
         >
           <Scissors size={20} />
         </div>
@@ -1154,7 +1185,7 @@ function App() {
         <div 
           className="tool-icon-btn hover-active"
           onClick={() => setShowHelpModal(true)}
-          title="操作指引與快捷鍵說明 (F1)"
+          title={t.tooltips.help}
           style={{ color: 'var(--accent-cyan)' }}
         >
           <HelpCircle size={20} />
@@ -1179,18 +1210,18 @@ function App() {
         {isDragging && (
           <div className="drag-overlay active">
             <Upload size={48} className="title-cyan" style={{ marginBottom: '12px' }} />
-            <h3 style={{ fontSize: '18px', fontWeight: '500' }}>拖拽圖片至此處載入</h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>支援 PNG, JPEG, TIFF, RAW 格式</p>
+            <h3 style={{ fontSize: '18px', fontWeight: '500' }}>{t.dragOverlay.title}</h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{t.dragOverlay.desc}</p>
           </div>
         )}
 
         {!imageSrc ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', width: '100%' }}>
             <Upload size={48} className="title-cyan" style={{ marginBottom: '16px', opacity: 0.7 }} />
-            <h3 style={{ fontSize: '18px', fontWeight: '500', color: 'var(--text-primary)' }}>請開啟或拖拽圖片至此處</h3>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>支援 PNG, JPEG, TIFF, PDF/X 等格式</p>
+            <h3 style={{ fontSize: '18px', fontWeight: '500', color: 'var(--text-primary)' }}>{t.noImage.title}</h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>{t.noImage.desc}</p>
             <button className="cyber-btn" onClick={() => fileInputRef.current?.click()} style={{ marginTop: '20px' }}>
-              <Upload size={14} /> 選擇檔案
+              <Upload size={14} /> {t.noImage.button}
             </button>
           </div>
         ) : (
@@ -1321,14 +1352,14 @@ function App() {
                     onClick={(e) => { e.stopPropagation(); confirmPaste(); }} 
                     style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
                   >
-                    確認貼上
+                    {t.canvas.confirmPaste}
                   </button>
                   <button 
                     className="cyber-btn" 
                     onClick={(e) => { e.stopPropagation(); setPastedLayer(null); }} 
                     style={{ fontSize: '11px', padding: '2px 8px', height: '22px', color: '#ff4d4d' }}
                   >
-                    取消
+                    {t.canvas.cancel}
                   </button>
                 </div>
               </div>
@@ -1351,18 +1382,18 @@ function App() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-cyber)', paddingBottom: '8px' }}>
               <Fingerprint size={16} className="title-cyan" />
-              <span style={{ fontSize: '13px', fontWeight: 'bold' }}>加密向量簽名板</span>
+              <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{t.canvas.signatureTitle}</span>
             </div>
             <div style={{ background: '#07090e', border: '1px solid var(--border-cyber)', height: '100px', borderRadius: '6px', position: 'relative' }}>
               <div style={{ position: 'absolute', bottom: '10px', left: '10px', right: '10px', borderBottom: '1px dashed var(--text-muted)' }} />
               <p style={{ position: 'absolute', top: '40%', width: '100%', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>
-                在觸控板簽署後以 Touch ID 解鎖
+                {t.canvas.signatureDesc}
               </p>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>安全等級: AES-256</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t.canvas.securityLevel}</span>
               <button className="cyber-btn" style={{ padding: '4px 8px', fontSize: '11px' }}>
-                使用 Touch ID 簽署
+                {t.canvas.signatureBtn}
               </button>
             </div>
           </div>
@@ -1379,7 +1410,7 @@ function App() {
             onClick={() => setActiveTab('adjust')}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <Sliders size={14} /> 影像調整
+              <Sliders size={14} /> {t.tabs.adjust}
             </div>
           </div>
           <div 
@@ -1387,7 +1418,7 @@ function App() {
             onClick={() => setActiveTab('print')}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <Printer size={14} /> 一鍵印刷
+              <Printer size={14} /> {t.tabs.print}
             </div>
           </div>
           <div 
@@ -1395,7 +1426,7 @@ function App() {
             onClick={() => setActiveTab('ai')}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <Sparkles size={14} /> AI 助理
+              <Sparkles size={14} /> {t.tabs.ai}
             </div>
           </div>
           <div 
@@ -1403,7 +1434,7 @@ function App() {
             onClick={() => setActiveTab('edit')}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <Scissors size={14} /> 影像編輯
+              <Scissors size={14} /> {t.tabs.edit}
             </div>
           </div>
         </div>
@@ -1412,12 +1443,12 @@ function App() {
         {activeTab === 'adjust' && (
           <div style={{ padding: '20px' }}>
             <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '16px', fontWeight: 'bold' }}>
-              非破壞性色彩修訂 (WebGL 加速)
+              {t.adjustPanel.title}
             </h3>
 
             <div className="slider-group">
               <div className="slider-label">
-                <span>曝光度 (Exposure)</span>
+                <span>{t.adjustPanel.exposure}</span>
                 <span className="mono-text">{exposure.toFixed(2)}</span>
               </div>
               <input 
@@ -1433,7 +1464,7 @@ function App() {
 
             <div className="slider-group">
               <div className="slider-label">
-                <span>亮度 (Brightness)</span>
+                <span>{t.adjustPanel.brightness}</span>
                 <span className="mono-text">{brightness.toFixed(2)}</span>
               </div>
               <input 
@@ -1449,7 +1480,7 @@ function App() {
 
             <div className="slider-group">
               <div className="slider-label">
-                <span>對比度 (Contrast)</span>
+                <span>{t.adjustPanel.contrast}</span>
                 <span className="mono-text">{contrast.toFixed(2)}</span>
               </div>
               <input 
@@ -1465,7 +1496,7 @@ function App() {
 
             <div className="slider-group">
               <div className="slider-label">
-                <span>飽和度 (Saturation)</span>
+                <span>{t.adjustPanel.saturation}</span>
                 <span className="mono-text">{saturation.toFixed(2)}</span>
               </div>
               <input 
@@ -1485,22 +1516,22 @@ function App() {
               style={{ width: '100%', justifyContent: 'center', marginTop: '16px', padding: '10px' }}
               disabled={brightness === 0.0 && contrast === 1.0 && saturation === 1.0 && exposure === 0.0}
             >
-              <CheckCircle2 size={14} /> 套用色調變更 (Bake)
+              <CheckCircle2 size={14} /> {t.adjustPanel.bakeBtn}
             </button>
 
             <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-cyber)', paddingTop: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>CMYK 印刷色域預檢</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{t.adjustPanel.gamutTitle}</span>
                 <button 
                   className={`cyber-btn ${showGamutWarning ? 'active' : ''}`}
                   onClick={() => setShowGamutWarning(!showGamutWarning)}
                   style={{ padding: '4px 8px', fontSize: '11px' }}
                 >
-                  {showGamutWarning ? <Eye size={12} /> : <EyeOff size={12} />} 預檢
+                  {showGamutWarning ? <Eye size={12} /> : <EyeOff size={12} />} {t.adjustPanel.gamutBtn}
                 </button>
               </div>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-                打開後系統將以紫色斜線標示出超出 <span className="title-purple">Coated FOGRA39</span> 的高飽和度印刷失真色彩。
+                {t.adjustPanel.gamutDesc}
               </p>
             </div>
           </div>
@@ -1510,26 +1541,26 @@ function App() {
         {activeTab === 'print' && (
           <div style={{ padding: '20px' }}>
             <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '12px', fontWeight: 'bold' }}>
-              一鍵物理規格重設
+              {t.printPanel.title}
             </h3>
 
             {/* Layout Orientation Switcher */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>版面方向 (Orientation)</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t.printPanel.orientation}</span>
               <div style={{ display: 'flex', gap: '4px' }}>
                 <button
                   className={`cyber-btn ${printOrientation === 'PORTRAIT' ? 'active' : ''}`}
                   onClick={() => setPrintOrientation('PORTRAIT')}
                   style={{ padding: '2px 8px', fontSize: '11px', height: '22px' }}
                 >
-                  直向
+                  {t.printPanel.portrait}
                 </button>
                 <button
                   className={`cyber-btn ${printOrientation === 'LANDSCAPE' ? 'active' : ''}`}
                   onClick={() => setPrintOrientation('LANDSCAPE')}
                   style={{ padding: '2px 8px', fontSize: '11px', height: '22px' }}
                 >
-                  橫向
+                  {t.printPanel.landscape}
                 </button>
               </div>
             </div>
@@ -1557,7 +1588,7 @@ function App() {
                 className={`preset-card ${selectedPreset === 'CUSTOM' ? 'active' : ''}`}
                 onClick={() => setSelectedPreset('CUSTOM')}
               >
-                <p className="preset-card-title" style={{ color: 'var(--accent-cyan)' }}>自訂規格</p>
+                <p className="preset-card-title" style={{ color: 'var(--accent-cyan)' }}>{t.printPanel.customSize}</p>
                 <p className="preset-card-sub">
                   {(() => {
                     const isCurrentlyLandscape = customWidth > customHeight;
@@ -1573,7 +1604,7 @@ function App() {
             {selectedPreset === 'CUSTOM' && (
               <div className="glass-panel" style={{ padding: '12px', marginBottom: '16px', display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.3)' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>寬度 (mm)</label>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t.printPanel.width}</label>
                   <input 
                     type="number" 
                     value={customWidth} 
@@ -1582,7 +1613,7 @@ function App() {
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>高度 (mm)</label>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t.printPanel.height}</label>
                   <input 
                     type="number" 
                     value={customHeight} 
@@ -1595,18 +1626,18 @@ function App() {
 
             <div className="glass-panel" style={{ padding: '12px', marginBottom: '20px', background: 'rgba(0,0,0,0.2)' }}>
               <h4 style={{ fontSize: '12px', color: 'var(--accent-cyan)', marginBottom: '6px', fontWeight: 'bold' }}>
-                實體列印像素計算
+                {t.printPanel.pixelCalc}
               </h4>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                <span>目標尺寸:</span>
+                <span>{t.printPanel.targetSize}</span>
                 <span className="mono-text">{currentPreset.widthMm} x {currentPreset.heightMm} mm</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                <span>解析度:</span>
+                <span>{t.printPanel.resolution}</span>
                 <span className="mono-text">{dpi} DPI</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-primary)', marginTop: '6px', borderTop: '1px solid var(--border-cyber)', paddingTop: '6px', fontWeight: 'bold' }}>
-                <span>所需寬高:</span>
+                <span>{t.printPanel.requiredPixels}</span>
                 <span className="mono-text title-cyan">{printPixels.widthPx} x {printPixels.heightPx} px</span>
               </div>
 
@@ -1615,10 +1646,10 @@ function App() {
                 return (
                   <div style={{ marginTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '8px' }}>
                     <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '6px', fontStyle: 'italic' }}>
-                      計算公式: (尺寸 / 25.4) * DPI = 所需像素
+                      {t.printPanel.formula}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      <span>目前影像尺寸:</span>
+                      <span>{t.printPanel.currentImgSize}</span>
                       <span className="mono-text">{imageInfo.width} x {imageInfo.height} px</span>
                     </div>
                     <div style={{
@@ -1638,10 +1669,14 @@ function App() {
                         : (upscaleAlgorithm === 'BILINEAR' ? '#ff9100' : 'var(--accent-cyan)')
                     }}>
                       {isSufficient 
-                        ? '✅ 目前影像解析度充足！適合高品質印刷輸出（匯出時將自動重採樣優化縮圖）。' 
+                        ? t.printPanel.sufficient 
                         : (upscaleAlgorithm === 'BILINEAR'
-                            ? '⚠️ 原始影像解析度不足！印刷輸出會被拉伸放大。目前設定為 Bilinear 模糊拉伸。建議在下方調校助理切換為 [Lanczos-3] 超採樣放大，或更換更高解析度圖檔。'
-                            : `ℹ️ 原始解析度不足，但免擔心！系統已配置 [${upscaleAlgorithm === 'BICUBIC' ? 'Bicubic 雙三次' : 'Lanczos-3 專業'}] 智慧超採樣，匯出時將自動重採樣重建放大至 ${printPixels.widthPx} x ${printPixels.heightPx} px 以滿足 ${dpi} DPI 滿版印刷，無需降低 DPI！`
+                            ? t.printPanel.insufficientBilinear
+                            : t.printPanel.insufficientLanczos
+                                .replace('{algo}', upscaleAlgorithm === 'BICUBIC' ? (language.startsWith('zh') ? 'Bicubic 雙三次' : 'Bicubic') : (language.startsWith('zh') ? 'Lanczos-3 專業' : 'Lanczos-3'))
+                                .replace('{w}', printPixels.widthPx)
+                                .replace('{h}', printPixels.heightPx)
+                                .replace('{dpi}', dpi)
                           )
                       }
                     </div>
@@ -1653,54 +1688,54 @@ function App() {
             {/* Print Scaling & Quality Optimizer Panel */}
             {(() => {
               const dpiQuality = (() => {
-                if (dpi >= 300) return { label: '🌟 完美 (Perfect)', color: 'var(--accent-green)', bg: 'rgba(0, 230, 118, 0.08)', desc: '適合近距離手持閱讀（如書籍、相冊、傳單）' };
-                if (dpi >= 150) return { label: '🟢 優良 (Fine)', color: 'var(--accent-cyan)', bg: 'rgba(0, 229, 255, 0.08)', desc: '適合近觀海報、室內廣告（最佳觀賞距離 0.5~1米）' };
-                if (dpi >= 90) return { label: '🟡 接受 (Acceptable)', color: '#ffc107', bg: 'rgba(255, 193, 7, 0.08)', desc: '適合遠觀海報、展場背景牆（最佳觀賞距離 1~2米）' };
-                return { label: '🔴 嚴重不足 (Poor)', color: '#ff4d4d', bg: 'rgba(255, 77, 77, 0.08)', desc: '不適合大版面輸出，容易模糊（建議更換圖檔或降低版面尺寸）' };
+                if (dpi >= 300) return { label: t.printPanel.qualityPerfect, color: 'var(--accent-green)', bg: 'rgba(0, 230, 118, 0.08)', desc: t.printPanel.descPerfect };
+                if (dpi >= 150) return { label: t.printPanel.qualityFine, color: 'var(--accent-cyan)', bg: 'rgba(0, 229, 255, 0.08)', desc: t.printPanel.descFine };
+                if (dpi >= 90) return { label: t.printPanel.qualityAcceptable, color: '#ffc107', bg: 'rgba(255, 193, 7, 0.08)', desc: t.printPanel.descAcceptable };
+                return { label: t.printPanel.qualityPoor, color: '#ff4d4d', bg: 'rgba(255, 77, 77, 0.08)', desc: t.printPanel.descPoor };
               })();
               const bestViewingDistance = (150 / dpi).toFixed(1);
 
               const recDpi = (() => {
                 const preset = selectedPreset;
                 if (preset === 'A0') {
-                  return { range: '72 ~ 120', maxValue: 120, desc: 'A0 超大版面看板，建議觀賞距離 > 2 米。調低解析度能大幅縮減檔案大小，且列印效果極佳。' };
+                  return { range: '72 ~ 120', maxValue: 120, desc: t.presets.A0 };
                 }
                 if (preset === 'A1') {
-                  return { range: '100 ~ 150', maxValue: 150, desc: 'A1 大型展板與海報，建議觀賞距離 1.5 ~ 2 米。150 DPI 已能保證絕佳視覺完整度。' };
+                  return { range: '100 ~ 150', maxValue: 150, desc: t.presets.A1 };
                 }
                 if (preset === 'A2') {
-                  return { range: '120 ~ 200', maxValue: 200, desc: 'A2 中型展會海報與掛軸，建議觀賞距離 1 ~ 1.5 米。200 DPI 可兼顧容量與細緻度。' };
+                  return { range: '120 ~ 200', maxValue: 200, desc: t.presets.A2 };
                 }
                 if (preset === 'A3' || preset === 'B4') {
-                  return { range: '150 ~ 250', maxValue: 250, desc: 'A3/B4 宣傳海報與精緻菜單，建議觀賞距離 0.5 ~ 1 米。250 DPI 能呈現清晰文字細節。' };
+                  return { range: '150 ~ 250', maxValue: 250, desc: t.presets.A3B4 };
                 }
                 if (preset === 'CUSTOM') {
                   const maxDim = Math.max(customWidth, customHeight);
                   if (maxDim > 1000) {
-                    return { range: '72 ~ 120', maxValue: 120, desc: '超大自訂規格，建議觀賞距離 > 2 米。適度調低 DPI 能顯著優化檔案大小，輸出不受影響。' };
+                    return { range: '72 ~ 120', maxValue: 120, desc: t.presets.customLarge };
                   }
                   if (maxDim > 500) {
-                    return { range: '100 ~ 180', maxValue: 180, desc: '中大自訂規格，建議觀賞距離 1 ~ 2 米。180 DPI 是可平衡輸出與細節的建議值。' };
+                    return { range: '100 ~ 180', maxValue: 180, desc: t.presets.customMedLarge };
                   }
                   if (maxDim > 250) {
-                    return { range: '150 ~ 250', maxValue: 250, desc: '中型自訂印刷，建議觀賞距離 0.5 ~ 1 米。250 DPI 能展現充足的細部細節。' };
+                    return { range: '150 ~ 250', maxValue: 250, desc: t.presets.customMed };
                   }
-                  return { range: '300 ~ 600', maxValue: 600, desc: '小型手持印刷規格，建議觀賞距離 < 0.5 米。建議設定至少 600 DPI 以呈現精緻細節。' };
+                  return { range: '300 ~ 600', maxValue: 600, desc: t.presets.customSmall };
                 }
-                return { range: '300 ~ 600', maxValue: 600, desc: '手持閱讀書冊、證件照或精緻相片，建議觀賞距離 < 0.5 米。必須設定 300 ~ 600 DPI 才能保證近看文字無顆粒感。' };
+                return { range: '300 ~ 600', maxValue: 600, desc: t.presets.defaultHandheld };
               })();
 
               return (
                 <div className="glass-panel glow-cyan" style={{ padding: '14px', marginBottom: '20px', background: 'rgba(10, 15, 25, 0.45)', border: '1px solid var(--border-cyber)' }}>
                   <h4 style={{ fontSize: '12px', color: 'var(--accent-cyan)', marginBottom: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <ShieldAlert size={14} style={{ color: 'var(--accent-cyan)' }} />
-                    印前縮放與品質調校助理
+                    {t.printPanel.optimizerTitle}
                   </h4>
 
                   {/* 1. Quality badge & viewing distance */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>輸出品質評級:</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t.printPanel.qualityRating}</span>
                       <span style={{ 
                         fontSize: '11px', 
                         fontWeight: 'bold', 
@@ -1717,15 +1752,15 @@ function App() {
                       {dpiQuality.desc}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      <span>建議最佳觀看距離:</span>
-                      <span className="mono-text title-cyan" style={{ fontWeight: 'bold' }}>{bestViewingDistance} 公尺以上</span>
+                      <span>{t.printPanel.viewingDistance}</span>
+                      <span className="mono-text title-cyan" style={{ fontWeight: 'bold' }}>{bestViewingDistance} {t.printPanel.metersOrMore}</span>
                     </div>
                   </div>
 
                   {/* 1.5 Dynamic Recommended DPI range card */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(255,255,255,0.03)', padding: '8px 10px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>此規格建議解析度:</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t.printPanel.recRes}</span>
                       <span className="mono-text title-cyan" style={{ fontSize: '11px', fontWeight: 'bold' }}>{recDpi.range} DPI</span>
                     </div>
                     <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.3' }}>
@@ -1737,33 +1772,33 @@ function App() {
                         setDpi(recDpi.maxValue);
                         setDpiInputText(String(recDpi.maxValue));
                         setDpiPreset('CUSTOM');
-                        setAiStatus(`已套用本尺寸建議最佳解析度: ${recDpi.maxValue} DPI`);
+                        setAiStatus(t.alerts.appliedRes.replace('{dpi}', recDpi.maxValue));
                       }}
                       style={{ marginTop: '6px', fontSize: '10px', padding: '2px 6px', height: '20px', alignSelf: 'flex-end', justifyContent: 'center' }}
                     >
-                      套用建議上限值 ({recDpi.maxValue} DPI)
+                      {t.printPanel.applyLimit.replace('{val}', recDpi.maxValue)}
                     </button>
                   </div>
 
                   {/* 2. Resampling Algorithm Selection */}
                   <div style={{ marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>超採樣放大演算法</label>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t.printPanel.upscaleLabel}</label>
                     <select
                       value={upscaleAlgorithm}
                       onChange={(e) => setUpscaleAlgorithm(e.target.value)}
                       className="mono-text"
                       style={{ width: '100%', background: 'var(--bg-cyber-dark)', color: 'var(--text-primary)', border: '1px solid var(--border-cyber)', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', outline: 'none' }}
                     >
-                      <option value="BILINEAR">Bilinear (普通雙線性 - 邊緣較軟)</option>
-                      <option value="BICUBIC">Bicubic (雙三次卷積 - 銳化細節)</option>
-                      <option value="LANCZOS3">Lanczos-3 (印刷級 sinc 超採樣 - 最清晰)</option>
+                      <option value="BILINEAR">Bilinear ({language.startsWith('zh') ? '普通雙線性 - 邊緣較軟' : 'Bilinear - Soft edges'})</option>
+                      <option value="BICUBIC">Bicubic ({language.startsWith('zh') ? '雙三次卷積 - 銳化細節' : 'Bicubic - Sharp details'})</option>
+                      <option value="LANCZOS3">Lanczos-3 ({language.startsWith('zh') ? '印刷級 sinc 超採樣 - 最清晰' : 'Lanczos-3 - Ultra sharp sinc'})</option>
                     </select>
                   </div>
 
                   {/* 3. Safety Guard and Auto Adapt */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>強制鎖定最低安全解析度 (100 DPI)</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t.printPanel.forceMinDpi}</span>
                       <input 
                         type="checkbox" 
                         checked={lockMinDpi} 
@@ -1777,7 +1812,7 @@ function App() {
                       onClick={autoMatchDpi}
                       style={{ width: '100%', justifyContent: 'center', fontSize: '11px', padding: '6px', height: '28px' }}
                     >
-                      DPI 與目前影像 1:1 無損最佳化適配
+                      {t.printPanel.autoDpi}
                     </button>
                   </div>
                 </div>
@@ -1785,7 +1820,7 @@ function App() {
             })()}
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>顯示 3mm 出血線</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{t.printPanel.showBleed}</span>
               <input 
                 type="checkbox" 
                 checked={showBleed} 
@@ -1794,7 +1829,7 @@ function App() {
               />
             </div>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: '1.4' }}>
-              在畫面中渲染出血邊框，提示裁切安全線（安全間隔為 3 毫米）。
+              {t.printPanel.bleedDesc}
             </p>
           </div>
         )}
@@ -1803,41 +1838,41 @@ function App() {
         {activeTab === 'ai' && (
           <div style={{ padding: '20px' }}>
             <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '16px', fontWeight: 'bold' }}>
-              本地端智慧輔助引擎 (ONNX)
+              {t.aiPanel.title}
             </h3>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="glass-panel" style={{ padding: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 'bold' }}>AI 智慧去背</span>
-                  <span style={{ fontSize: '10px', color: 'var(--accent-purple)' }}>CoreML 加速</span>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{t.aiPanel.cutoutTitle}</span>
+                  <span style={{ fontSize: '10px', color: 'var(--accent-purple)' }}>{t.aiPanel.cutoutAccel}</span>
                 </div>
                 <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  偵測前景色主體並刪除背景，全本地運算不佔用雲端。
+                  {t.aiPanel.cutoutDesc}
                 </p>
                 <button 
                   className={`cyber-btn-purple ${hasCutout ? 'active' : ''}`}
                   onClick={runAiCutout}
                   style={{ width: '100%', justifyContent: 'center' }}
                 >
-                  <Sparkles size={14} /> 執行智慧去背
+                  <Sparkles size={14} /> {t.aiPanel.cutoutBtn}
                 </button>
               </div>
 
               <div className="glass-panel" style={{ padding: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 'bold' }}>智慧隱私防護遮罩</span>
-                  <span style={{ fontSize: '10px', color: 'var(--accent-green)' }}>OCR 偵測</span>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{t.aiPanel.redactTitle}</span>
+                  <span style={{ fontSize: '10px', color: 'var(--accent-green)' }}>{t.aiPanel.redactAccel}</span>
                 </div>
                 <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  一鍵自動辨識並模糊：個資身分證、信用卡號碼、人臉。
+                  {t.aiPanel.redactDesc}
                 </p>
                 <button 
                   className={`cyber-btn ${hasRedacted ? 'active' : ''}`}
                   onClick={runAiRedact}
                   style={{ width: '100%', justifyContent: 'center' }}
                 >
-                  <ShieldAlert size={14} /> 執行敏感隱私塗黑
+                  <ShieldAlert size={14} /> {t.aiPanel.redactBtn}
                 </button>
               </div>
             </div>
@@ -1857,11 +1892,11 @@ function App() {
         {activeTab === 'edit' && (
           <div style={{ padding: '20px' }}>
             <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '12px', fontWeight: 'bold' }}>
-              圖片框選與編輯功能
+              {t.editPanel.title}
             </h3>
             
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
-              請先在左側工具列啟用「<b>區域框選工具 (M)</b>」，然後在圖片上拖曳滑鼠以框選任何區域。
+              {t.editPanel.desc}
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1871,7 +1906,7 @@ function App() {
                 style={{ justifyContent: 'center', padding: '10px' }}
                 disabled={!selectionRect}
               >
-                <Copy size={16} /> 複製框選區域 (Copy)
+                <Copy size={16} /> {t.editPanel.copyBtn}
               </button>
 
               <button 
@@ -1880,7 +1915,7 @@ function App() {
                 style={{ justifyContent: 'center', padding: '10px' }}
                 disabled={!clipboard}
               >
-                <Clipboard size={16} /> 貼上至影像中心 (Paste)
+                <Clipboard size={16} /> {t.editPanel.pasteBtn}
               </button>
 
               <button 
@@ -1889,7 +1924,7 @@ function App() {
                 style={{ justifyContent: 'center', padding: '10px', color: '#ff4d4d', borderColor: 'rgba(255, 77, 77, 0.2)' }}
                 disabled={!selectionRect && !pastedLayer}
               >
-                <Trash2 size={16} /> 刪除框選像素 / 取消貼上 (Delete)
+                <Trash2 size={16} /> {t.editPanel.deleteBtn}
               </button>
 
               <button 
@@ -1898,21 +1933,21 @@ function App() {
                 style={{ justifyContent: 'center', padding: '10px' }}
                 disabled={!selectionRect}
               >
-                <ShieldAlert size={16} style={{ color: 'var(--accent-cyan)' }} /> 模糊框選區域 (Blur)
+                <ShieldAlert size={16} style={{ color: 'var(--accent-cyan)' }} /> {t.editPanel.blurBtn}
               </button>
             </div>
 
             {selectionRect && (
               <div className="glass-panel" style={{ marginTop: '20px', padding: '12px', background: 'rgba(0,0,0,0.2)' }}>
                 <h4 style={{ fontSize: '12px', color: 'var(--accent-cyan)', marginBottom: '6px', fontWeight: 'bold' }}>
-                  目前框選範圍
+                  {t.editPanel.selectionArea}
                 </h4>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                  <span>起始坐標 (X, Y):</span>
+                  <span>{t.editPanel.startCoords}</span>
                   <span className="mono-text">{Math.round(selectionRect.x)}, {Math.round(selectionRect.y)} px</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  <span>寬高尺寸 (W x H):</span>
+                  <span>{t.editPanel.dimensions}</span>
                   <span className="mono-text">{Math.round(selectionRect.w)} x {Math.round(selectionRect.h)} px</span>
                 </div>
               </div>
@@ -1920,13 +1955,13 @@ function App() {
 
             {clipboard && (
               <div className="glass-panel glow-cyan" style={{ marginTop: '16px', padding: '10px', background: 'rgba(0,229,255,0.02)', textAlign: 'center' }}>
-                <p style={{ fontSize: '11px', color: 'var(--accent-cyan)', marginBottom: '8px' }}>剪貼簿緩衝區 (已就緒)</p>
+                <p style={{ fontSize: '11px', color: 'var(--accent-cyan)', marginBottom: '8px' }}>{t.editPanel.clipboardTitle}</p>
                 <img 
                   src={clipboard.dataUrl} 
                   alt="Clipboard preview" 
                   style={{ maxHeight: '80px', maxWidth: '100%', border: '1px solid var(--border-cyber)', borderRadius: '4px' }}
                 />
-                <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>尺寸: {clipboard.w}x{clipboard.h} px</p>
+                <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>{t.editPanel.clipboardSize} {clipboard.w}x{clipboard.h} px</p>
               </div>
             )}
           </div>
@@ -1936,19 +1971,19 @@ function App() {
       {/* 5. Footer Status Bar */}
       <footer className="cyber-footer">
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span className="mono-text">FILE: {imageInfo.name}</span>
+          <span className="mono-text">{t.footer.file} {imageInfo.name}</span>
           <span style={{ width: '1px', height: '10px', background: 'var(--border-cyber)' }} />
-          <span className="mono-text">DIM: {imageInfo.width} x {imageInfo.height} px</span>
+          <span className="mono-text">{t.footer.dim} {imageInfo.width} x {imageInfo.height} px</span>
           <span style={{ width: '1px', height: '10px', background: 'var(--border-cyber)' }} />
-          <span className="mono-text">PHYSICAL: {Math.round(imageInfo.width * 25.4 / dpi)} x {Math.round(imageInfo.height * 25.4 / dpi)} mm</span>
+          <span className="mono-text">{t.footer.physical} {Math.round(imageInfo.width * 25.4 / dpi)} x {Math.round(imageInfo.height * 25.4 / dpi)} mm</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span className="mono-text" style={{ color: 'var(--accent-cyan)' }}>
-            TARGET SPACE: {showGamutWarning ? 'CMYK (PROOF)' : 'sRGB'}
+            {t.footer.targetSpace} {showGamutWarning ? 'CMYK (PROOF)' : 'sRGB'}
           </span>
           <span style={{ width: '1px', height: '10px', background: 'var(--border-cyber)' }} />
-          <span className="mono-text">ZOOM: {Math.round(zoom * 100)}%</span>
+          <span className="mono-text">{t.footer.zoom} {Math.round(zoom * 100)}%</span>
           <span style={{ width: '1px', height: '10px', background: 'var(--border-cyber)' }} />
           <span className="mono-text">X: {mouseCoords.x} Y: {mouseCoords.y}</span>
         </div>
@@ -1986,14 +2021,14 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-cyber)', paddingBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <HelpCircle className="title-cyan" size={20} />
-                <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>DevPixel 影像與印前調校助手說明</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>{t.helpModal.title}</h2>
               </div>
               <button 
                 className="cyber-btn" 
                 onClick={() => setShowHelpModal(false)}
                 style={{ padding: '4px 8px', fontSize: '12px' }}
               >
-                關閉 (Esc)
+                {t.helpModal.close}
               </button>
             </div>
 
@@ -2011,7 +2046,7 @@ function App() {
                   height: '32px'
                 }}
               >
-                📖 功能與操作手冊
+                {t.helpModal.tabManual}
               </button>
               <button 
                 onClick={() => setHelpTab('privacy')}
@@ -2025,84 +2060,42 @@ function App() {
                   height: '32px'
                 }}
               >
-                🔒 隱私權與資料保護政策
+                {t.helpModal.tabPrivacy}
               </button>
             </div>
 
             {helpTab === 'manual' ? (
               /* TAB 1: User Manual */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                <div>
-                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Maximize2 size={14} className="title-cyan" /> 1. 平移與縮放 (Pan & Zoom)
-                  </h3>
-                  <p style={{ margin: 0, paddingLeft: '20px' }}>
-                    選取左側 <b>平移工具 (H)</b>，在畫布按住滑鼠左鍵即可平移；亦可在任何工具狀態下 <b>長按鍵盤「空白鍵 (Spacebar)」</b> 暫時抓取移動。使用頂部拉桿、縮放按鈕或滾輪可進行縮放。畫布設有安全縮放限制，防視窗逸失。
-                  </p>
-                </div>
-
-                <div>
-                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Sliders size={14} className="title-cyan" /> 2. 色彩影像調整與烘焙 (Baking)
-                  </h3>
-                  <p style={{ margin: 0, paddingLeft: '20px' }}>
-                    切換到右側「影像調整」分頁，可拉動亮度、曝光度等滑桿透過 WebGL 著色器實時預覽。調整滿意後，<b>必須點擊下方「套用色調變更 (Bake)」按鈕</b> 才能將變更寫入影像像素並寫入歷史紀錄。
-                  </p>
-                </div>
-
-                <div>
-                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Scissors size={14} className="title-cyan" /> 3. 區域編輯、無痕消除與貼上層
-                  </h3>
-                  <p style={{ margin: 0, paddingLeft: '20px' }}>
-                    選取左側 <b>區域框選工具 (M)</b>，在畫布上拖曳出選取區：
-                    <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px' }}>
-                      <li><b>複製與貼上</b>：點選複製將像素存入剪貼簿，貼上後會產生一個懸浮貼上層。可用滑鼠隨意拖曳定位，雙擊或右側點選烘焙寫入畫布。欲移除貼上層，可直接點擊「取消」或按鍵盤 <b>Delete / Backspace</b> 鍵。</li>
-                      <li><b>無痕消除</b>：點選「刪除選取區」或按鍵盤 <b>Delete / Backspace</b> 鍵，系統將自動進行周邊亮度像素的無痕融合補平。</li>
-                      <li><b>隱私模糊</b>：點選「模糊框選區域」會執行高品質的 25x25 強效模糊，使文字徹底不可讀。</li>
-                    </ul>
-                  </p>
-                </div>
-
-                <div>
-                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Crop size={14} className="title-cyan" /> 4. 印刷規格、出血線與調校助理 (Pre-press Optimizer)
-                  </h3>
-                  <p style={{ margin: 0, paddingLeft: '20px' }}>
-                    選取左側 <b>裁切工具 (C)</b> 後，可在右側「一鍵印刷」頁籤進行進階設定：
-                    <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px' }}>
-                      <li><b>出血線</b>：系統支援直橫向版面方向自動偵測與手動切換，並自動渲染 3mm 虛線出血邊界框。</li>
-                      <li><b>建議解析度對照</b>：系統會依據選擇規格（如 A0~A5）動態給出建議解析度範圍。點擊 <b>「套用建議上限值」</b> 按鈕，能一鍵將 DPI 設為該規格的上限值，避免檔案容量臃腫。</li>
-                      <li><b>安全 DPI 鎖定</b>：勾選「最低安全解析度」後將鎖定 DPI 下限為 100 DPI，防止解析度過低導致印刷像素化。</li>
-                      <li><b>超採樣放大演算法</b>：提供 Bilinear、Bicubic、Lanczos-3。當原圖尺寸小於目標所需像素時，系統將自動調用 <b>Lanczos-3 印刷級插值重採樣</b> 對影像進行邊緣銳化重建，確保高 DPI 滿版列印品質，無需調降 DPI！</li>
-                    </ul>
-                  </p>
-                </div>
-
-                <div>
-                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Sparkles size={14} className="title-cyan" /> 5. 本地 AI 去背與隱私防護檢測
-                  </h3>
-                  <p style={{ margin: 0, paddingLeft: '20px' }}>
-                    在右側「AI 助理」頁籤中：點選 <b>AI 智慧去背</b> 可藉由本地端去背引擎移除相片或文件背景，去背後的透明底色可透過畫布下的 16px 棋盤格背景清晰辨識；點選 <b>敏感資訊自動掃描</b> 可一鍵搜尋畫面中是否包含個資並引導遮蔽。
-                  </p>
-                </div>
+                {t.helpModal.manual.sections.map((section, idx) => (
+                  <div key={idx}>
+                    <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {idx === 0 && <Maximize2 size={14} className="title-cyan" />}
+                      {idx === 1 && <Sliders size={14} className="title-cyan" />}
+                      {idx === 2 && <Scissors size={14} className="title-cyan" />}
+                      {idx === 3 && <Crop size={14} className="title-cyan" />}
+                      {idx === 4 && <Sparkles size={14} className="title-cyan" />}
+                      {section.title}
+                    </h3>
+                    <p style={{ margin: 0, paddingLeft: '20px' }}>
+                      {section.content}
+                    </p>
+                  </div>
+                ))}
 
                 <div style={{ borderTop: '1px solid var(--border-cyber)', paddingTop: '12px', marginTop: '4px' }}>
                   <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px' }}>
-                    ⌨️ 鍵盤快捷鍵對照表 (Shortcuts)
+                    {t.helpModal.manual.shortcutsTitle}
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Space (長按)</kbd> 抓手平移</div>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Cmd / Ctrl + Z</kbd> 復原操作 (Undo)</div>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Cmd / Ctrl + Shift + Z</kbd> 重做操作 (Redo)</div>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Delete / Backspace</kbd> 刪除選區 / 撤銷貼上層</div>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>H</kbd> 切換到平移工具</div>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>C</kbd> 切換到裁切工具</div>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>M</kbd> 切換到框選工具</div>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>A</kbd> 切換到向量標記</div>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>S</kbd> 切換到安全簽名</div>
-                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>F1</kbd> 開啟說明視窗</div>
+                    {t.helpModal.manual.shortcuts.map((s, idx) => (
+                      <div key={idx}>
+                        <kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>
+                          {s.key}
+                        </kbd>
+                        {' '}{s.desc}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -2111,51 +2104,26 @@ function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
                 <div style={{ padding: '10px 14px', background: 'rgba(0, 229, 255, 0.05)', border: '1px solid var(--border-cyber)', borderRadius: '6px' }}>
                   <h3 style={{ fontSize: '14px', color: 'var(--accent-cyan)', fontWeight: 'bold', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <ShieldAlert size={16} /> 100% 本地端離線隱私安全宣告
+                    <ShieldAlert size={16} /> {t.helpModal.privacy.bannerTitle}
                   </h3>
                   <p style={{ margin: 0, fontSize: '12px' }}>
-                    DevPixel 專案秉持「隱私安全至上 (Privacy First)」原則。所有核心運算均限制在您本地的實體主機上運行，實現真正的實體隔離與零網路隱私洩漏風險。
+                    {t.helpModal.privacy.bannerContent}
                   </p>
                 </div>
 
-                <div>
-                  <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '4px' }}>
-                    一、100% 本地端運算架構
-                  </h4>
-                  <p style={{ margin: 0, paddingLeft: '12px' }}>
-                    本程式載入的任何影像、照片、手寫文檔及證件，其 WebGL 著色器濾鏡處理、Canvas 向量編輯、像素無痕填充演算法、以及 Lanczos-3 高品質超採樣重採樣放大，**全數在您本機瀏覽器 / Tauri 沙盒內部以 CPU 或 GPU 獨立完成，絕對不會上傳至任何雲端伺服器**。
-                  </p>
-                </div>
-
-                <div>
-                  <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '4px' }}>
-                    二、AI 與敏感字元掃描之離線推理
-                  </h4>
-                  <p style={{ margin: 0, paddingLeft: '12px' }}>
-                    內建的 <b>AI 智慧去背</b>（移除亮/暗背景）以及 <b>個資敏感字元 OCR 自動偵測掃描</b> 功能，皆是透過本地編譯之智慧模組直接在您的本機硬體上進行單機計算推理。本程式不含任何外部遙測 (Telemetry) API，個資掃描比對結果僅在前端介面短暫引導標記，不會上傳給任何第三方或進行存檔。
-                  </p>
-                </div>
-
-                <div>
-                  <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '4px' }}>
-                    三、印前導出與色彩空間轉換安全
-                  </h4>
-                  <p style={{ margin: 0, paddingLeft: '12px' }}>
-                    程式所附帶的 `@devpixel/cmyk-wasm` 模組是純 Rust 編譯的本地 WebAssembly 模組，其 sRGB 轉 CMYK（FOGRA39 描述檔）、TIFF 及符合 PDF/X-1a 標準之印前 PDF 文件編碼包裝，皆為本機同步進行，直接輸出檔案寫入您硬碟，沒有任何中繼伺服器介入，保證您的商業設計與發行文件 100% 安全保密。
-                  </p>
-                </div>
-
-                <div>
-                  <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '4px' }}>
-                    四、個資隱私模糊處理 (Redaction)
-                  </h4>
-                  <p style={{ margin: 0, paddingLeft: '12px' }}>
-                    當您使用本程式的「模糊框選區域」功能時，系統將調用 25x25 強效方框模糊 (Box Blur) 內核進行像素混亂，此模糊在數學上具有不可還原性，能確保障蔽後的個資與文字在任何反向解碼下皆維持 100% 無法讀取狀態。
-                  </p>
-                </div>
+                {t.helpModal.privacy.sections.map((section, idx) => (
+                  <div key={idx}>
+                    <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '4px' }}>
+                      {section.title}
+                    </h4>
+                    <p style={{ margin: 0, paddingLeft: '12px' }}>
+                      {section.content}
+                    </p>
+                  </div>
+                ))}
 
                 <div style={{ borderTop: '1px solid var(--border-cyber)', paddingTop: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                  中華民國 115 年 (2026年) 07 月 11 日修訂並生效。若您在使用本程式時處於完全斷網狀態，所有功能均可無縫離線運作，敬請安心使用。
+                  {t.helpModal.privacy.effectiveDate}
                 </div>
               </div>
             )}
