@@ -1626,31 +1626,31 @@ function App() {
               const recDpi = (() => {
                 const preset = selectedPreset;
                 if (preset === 'A0') {
-                  return { range: '72 ~ 120', median: 96, desc: 'A0 超大版面看板，建議觀賞距離 > 2 米。調低解析度能大幅縮減檔案大小，且列印效果極佳。' };
+                  return { range: '72 ~ 120', maxValue: 120, desc: 'A0 超大版面看板，建議觀賞距離 > 2 米。調低解析度能大幅縮減檔案大小，且列印效果極佳。' };
                 }
                 if (preset === 'A1') {
-                  return { range: '100 ~ 150', median: 120, desc: 'A1 大型展板與海報，建議觀賞距離 1.5 ~ 2 米。120 DPI 已能保證絕佳視覺完整度。' };
+                  return { range: '100 ~ 150', maxValue: 150, desc: 'A1 大型展板與海報，建議觀賞距離 1.5 ~ 2 米。150 DPI 已能保證絕佳視覺完整度。' };
                 }
                 if (preset === 'A2') {
-                  return { range: '120 ~ 200', median: 150, desc: 'A2 中型展會海報與掛軸，建議觀賞距離 1 ~ 1.5 米。150 DPI 可兼顧容量與細緻度。' };
+                  return { range: '120 ~ 200', maxValue: 200, desc: 'A2 中型展會海報與掛軸，建議觀賞距離 1 ~ 1.5 米。200 DPI 可兼顧容量與細緻度。' };
                 }
                 if (preset === 'A3' || preset === 'B4') {
-                  return { range: '150 ~ 250', median: 200, desc: 'A3/B4 宣傳海報與精緻菜單，建議觀賞距離 0.5 ~ 1 米。200 DPI 能呈現清晰文字細節。' };
+                  return { range: '150 ~ 250', maxValue: 250, desc: 'A3/B4 宣傳海報與精緻菜單，建議觀賞距離 0.5 ~ 1 米。250 DPI 能呈現清晰文字細節。' };
                 }
                 if (preset === 'CUSTOM') {
                   const maxDim = Math.max(customWidth, customHeight);
                   if (maxDim > 1000) {
-                    return { range: '72 ~ 120', median: 96, desc: '超大自訂規格，建議觀賞距離 > 2 米。適度調低 DPI 能顯著優化檔案大小，輸出不受影響。' };
+                    return { range: '72 ~ 120', maxValue: 120, desc: '超大自訂規格，建議觀賞距離 > 2 米。適度調低 DPI 能顯著優化檔案大小，輸出不受影響。' };
                   }
                   if (maxDim > 500) {
-                    return { range: '100 ~ 180', median: 130, desc: '中大自訂規格，建議觀賞距離 1 ~ 2 米。130 DPI 是可平衡輸出與細節的建議值。' };
+                    return { range: '100 ~ 180', maxValue: 180, desc: '中大自訂規格，建議觀賞距離 1 ~ 2 米。180 DPI 是可平衡輸出與細節的建議值。' };
                   }
                   if (maxDim > 250) {
-                    return { range: '150 ~ 250', median: 200, desc: '中型自訂印刷，建議觀賞距離 0.5 ~ 1 米。200 DPI 能展現充足的細部細節。' };
+                    return { range: '150 ~ 250', maxValue: 250, desc: '中型自訂印刷，建議觀賞距離 0.5 ~ 1 米。250 DPI 能展現充足的細部細節。' };
                   }
-                  return { range: '300 ~ 600', median: 300, desc: '小型手持印刷規格，建議觀賞距離 < 0.5 米。建議設定至少 300 DPI 以呈現精緻細節。' };
+                  return { range: '300 ~ 600', maxValue: 600, desc: '小型手持印刷規格，建議觀賞距離 < 0.5 米。建議設定至少 600 DPI 以呈現精緻細節。' };
                 }
-                return { range: '300 ~ 600', median: 300, desc: '手持閱讀書冊、證件照或精緻相片，建議觀賞距離 < 0.5 米。必須設定 300 DPI 以上才能保證近看文字無顆粒感。' };
+                return { range: '300 ~ 600', maxValue: 600, desc: '手持閱讀書冊、證件照或精緻相片，建議觀賞距離 < 0.5 米。必須設定 300 ~ 600 DPI 才能保證近看文字無顆粒感。' };
               })();
 
               return (
@@ -1697,14 +1697,14 @@ function App() {
                     <button
                       className="cyber-btn"
                       onClick={() => {
-                        setDpi(recDpi.median);
-                        setDpiInputText(String(recDpi.median));
+                        setDpi(recDpi.maxValue);
+                        setDpiInputText(String(recDpi.maxValue));
                         setDpiPreset('CUSTOM');
-                        setAiStatus(`已套用本尺寸建議最佳解析度: ${recDpi.median} DPI`);
+                        setAiStatus(`已套用本尺寸建議最佳解析度: ${recDpi.maxValue} DPI`);
                       }}
                       style={{ marginTop: '6px', fontSize: '10px', padding: '2px 6px', height: '20px', alignSelf: 'flex-end', justifyContent: 'center' }}
                     >
-                      套用建議值 ({recDpi.median} DPI)
+                      套用建議上限值 ({recDpi.maxValue} DPI)
                     </button>
                   </div>
 
