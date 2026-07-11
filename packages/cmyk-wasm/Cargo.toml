@@ -1,0 +1,16 @@
+[package]
+name = "cmyk-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2.95"
+moxcms = "0.8.1"
+tiff = "0.9.1"
+pdf-writer = "0.12"
+
+# We can also add console_error_panic_hook for easier debugging in wasm context
+console_error_panic_hook = "0.1.7"

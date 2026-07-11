@@ -1,0 +1,15 @@
+{
+  "name": "devpixel-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:desktop": "npm run dev --workspace=packages/frontend-desktop",
+    "build:desktop": "npm run build --workspace=packages/frontend-desktop",
+    "build:core": "npm run build --workspace=packages/core",
+    "build:wasm": "npm run wasm-build --workspace=packages/cmyk-wasm",
+    "dev:tauri": "npm run dev --workspace=packages/desktop-shell",
+    "build:tauri": "npm run build --workspace=packages/desktop-shell"
+  }
+}

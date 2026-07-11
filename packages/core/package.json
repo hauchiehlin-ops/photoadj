@@ -1,0 +1,16 @@
+{
+  "name": "@devpixel/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 0"
+  },
+  "dependencies": {
+    "@devpixel/cmyk-wasm": "*"
+  }
+}

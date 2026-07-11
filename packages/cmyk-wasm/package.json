@@ -1,0 +1,12 @@
+{
+  "name": "@devpixel/cmyk-wasm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./pkg/cmyk_wasm.js",
+  "types": "./pkg/cmyk_wasm.d.ts",
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir pkg",
+    "wasm-build": "npx wasm-pack build --target web --out-dir pkg"
+  }
+}
