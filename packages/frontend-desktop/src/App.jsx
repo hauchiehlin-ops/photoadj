@@ -1590,13 +1590,22 @@ function App() {
                       borderRadius: '4px',
                       fontSize: '11px',
                       lineHeight: '1.4',
-                      background: isSufficient ? 'rgba(0, 230, 118, 0.08)' : 'rgba(255, 145, 0, 0.08)',
-                      border: `1px solid ${isSufficient ? 'var(--accent-green)' : 'rgba(255, 145, 0, 0.3)'}`,
-                      color: isSufficient ? 'var(--accent-green)' : '#ff9100'
+                      background: isSufficient 
+                        ? 'rgba(0, 230, 118, 0.08)' 
+                        : (upscaleAlgorithm === 'BILINEAR' ? 'rgba(255, 145, 0, 0.08)' : 'rgba(0, 229, 255, 0.08)'),
+                      border: isSufficient 
+                        ? '1px solid var(--accent-green)' 
+                        : (upscaleAlgorithm === 'BILINEAR' ? '1px solid rgba(255, 145, 0, 0.3)' : '1px solid var(--accent-cyan)'),
+                      color: isSufficient 
+                        ? 'var(--accent-green)' 
+                        : (upscaleAlgorithm === 'BILINEAR' ? '#ff9100' : 'var(--accent-cyan)')
                     }}>
                       {isSufficient 
                         ? '✅ 目前影像解析度充足！適合高品質印刷輸出（匯出時將自動重採樣優化縮圖）。' 
-                        : '⚠️ 原始影像解析度不足！印刷輸出會被拉伸放大。建議更換更高解析度圖檔或降低輸出 DPI。'
+                        : (upscaleAlgorithm === 'BILINEAR'
+                            ? '⚠️ 原始影像解析度不足！印刷輸出會被拉伸放大。目前設定為 Bilinear 模糊拉伸。建議在下方調校助理切換為 [Lanczos-3] 超採樣放大，或更換更高解析度圖檔。'
+                            : `ℹ️ 原始解析度不足，但免擔心！系統已配置 [${upscaleAlgorithm === 'BICUBIC' ? 'Bicubic 雙三次' : 'Lanczos-3 專業'}] 智慧超採樣，匯出時將自動重採樣重建放大至 ${printPixels.widthPx} x ${printPixels.heightPx} px 以滿足 ${dpi} DPI 滿版印刷，無需降低 DPI！`
+                          )
                       }
                     </div>
                   </div>
