@@ -44,7 +44,7 @@ import { DEFAULT_SAMPLE_IMAGE } from './sampleImage';
 function App() {
   const [activeTab, setActiveTab] = useState('adjust'); // adjust, print, ai
   const [activeTool, setActiveTool] = useState('pan'); // pan, crop, markup, signature
-  const [image, setImage] = useState(null);
+  const [imageSrc, setImageSrc] = useState(null);
   const [imageInfo, setImageInfo] = useState({ name: 'sample.png', width: 1200, height: 800 });
   const [dpi, setDpi] = useState(300);
   const [dpiPreset, setDpiPreset] = useState('300'); // '72', '150', '300', 'CUSTOM'
@@ -124,7 +124,7 @@ function App() {
     img.crossOrigin = 'anonymous';
     img.src = DEFAULT_SAMPLE_IMAGE;
     img.onload = () => {
-      setImage(img);
+      setImageSrc(DEFAULT_SAMPLE_IMAGE);
       setImageInfo({
         name: 'spaceman_neon.png',
         width: img.naturalWidth,
@@ -133,7 +133,7 @@ function App() {
       fitImageToViewport(img.naturalWidth, img.naturalHeight);
       
       // Init history stack
-      setHistory([img]);
+      setHistory([DEFAULT_SAMPLE_IMAGE]);
       setHistoryIndex(0);
     };
 
@@ -195,9 +195,9 @@ function App() {
     };
   }, [historyIndex, history, activeTool, activeTab]);
 
-  // Update canvas sizing and engine image whenever image or zoom/pan changes
+  // Update canvas sizing and engine image whenever imageSrc or adjustments change
   useEffect(() => {
-    if (image && canvasRef.current) {
+    if (imageSrc && canvasRef.current) {
       // Re-initialize WebGLEngine if canvas has remounted (context replaced)
       if (!engineRef.current || engineRef.current.canvas !== canvasRef.current) {
         try {
@@ -208,13 +208,19 @@ function App() {
       }
 
       if (engineRef.current) {
-        canvasRef.current.width = imageInfo.width;
-        canvasRef.current.height = imageInfo.height;
-        engineRef.current.setImage(image);
-        engineRef.current.updateAdjustments({ brightness, contrast, saturation, exposure });
+        const img = new Image();
+        img.onload = () => {
+          if (canvasRef.current && engineRef.current) {
+            canvasRef.current.width = imageInfo.width;
+            canvasRef.current.height = imageInfo.height;
+            engineRef.current.setImage(img);
+            engineRef.current.updateAdjustments({ brightness, contrast, saturation, exposure });
+          }
+        };
+        img.src = imageSrc;
       }
     }
-  }, [image, imageInfo, brightness, contrast, saturation, exposure]);
+  }, [imageSrc, imageInfo, brightness, contrast, saturation, exposure]);
 
   const fitImageToViewport = (imgWidth, imgHeight) => {
     if (!containerRef.current) return;
@@ -229,9 +235,10 @@ function App() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
+      const dataUrl = event.target.result;
       const img = new Image();
       img.onload = () => {
-        setImage(img);
+        setImageSrc(dataUrl);
         setImageInfo({
           name: file.name,
           width: img.naturalWidth,
@@ -245,10 +252,10 @@ function App() {
         setSelectionRect(null);
         
         // Reset and init history
-        setHistory([img]);
+        setHistory([dataUrl]);
         setHistoryIndex(0);
       };
-      img.src = event.target.result;
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
   };
@@ -296,7 +303,7 @@ function App() {
 
   // Mouse pan & marquee selection handling
   const handleMouseDown = (e) => {
-    if (!image) return;
+    if (!imageSrc) return;
     const isPanningMode = activeTool === 'pan' || spacePressed;
     if (isPanningMode) {
       setIsMouseDown(true);
@@ -312,7 +319,7 @@ function App() {
   };
 
   const handleMouseMove = (e) => {
-    if (!image) return;
+    if (!imageSrc) return;
     // Update footer coordinates
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
@@ -359,7 +366,7 @@ function App() {
   };
 
   const handleWheel = (e) => {
-    if (!image) return;
+    if (!imageSrc) return;
     e.preventDefault();
     const zoomFactor = 1.1;
     let nextZoom = zoom;
@@ -391,15 +398,20 @@ function App() {
   const handleUndo = () => {
     if (historyIndex > 0) {
       const prevIndex = historyIndex - 1;
-      const prevImg = history[prevIndex];
+      const prevImgSrc = history[prevIndex];
       setHistoryIndex(prevIndex);
       
-      setImage(prevImg);
-      setImageInfo({
-        ...imageInfo,
-        width: prevImg.naturalWidth,
-        height: prevImg.naturalHeight
-      });
+      setImageSrc(prevImgSrc);
+      const img = new Image();
+      img.onload = () => {
+        setImageInfo(prev => ({
+          ...prev,
+          width: img.naturalWidth,
+          height: img.naturalHeight
+        }));
+      };
+      img.src = prevImgSrc;
+
       setSelectionRect(null);
       setAiStatus('已復原上一步操作');
     }
@@ -409,15 +421,20 @@ function App() {
   const handleRedo = () => {
     if (historyIndex < history.length - 1) {
       const nextIndex = historyIndex + 1;
-      const nextImg = history[nextIndex];
+      const nextImgSrc = history[nextIndex];
       setHistoryIndex(nextIndex);
       
-      setImage(nextImg);
-      setImageInfo({
-        ...imageInfo,
-        width: nextImg.naturalWidth,
-        height: nextImg.naturalHeight
-      });
+      setImageSrc(nextImgSrc);
+      const img = new Image();
+      img.onload = () => {
+        setImageInfo(prev => ({
+          ...prev,
+          width: img.naturalWidth,
+          height: img.naturalHeight
+        }));
+      };
+      img.src = nextImgSrc;
+
       setSelectionRect(null);
       setAiStatus('已重做下一步操作');
     }
@@ -425,20 +442,16 @@ function App() {
 
   // Apply tone adjustments (Bake sliders)
   const applyToneAdjustments = () => {
-    if (!canvasRef.current || !image) return;
+    if (!canvasRef.current || !imageSrc) return;
     try {
       const bakedDataUrl = canvasRef.current.toDataURL('image/png');
-      const bakedImg = new Image();
-      bakedImg.onload = () => {
-        setBrightness(0.0);
-        setContrast(1.0);
-        setSaturation(1.0);
-        setExposure(0.0);
-        setImage(bakedImg);
-        pushHistory(bakedImg);
-        setAiStatus('色調調整已成功套用！');
-      };
-      bakedImg.src = bakedDataUrl;
+      setBrightness(0.0);
+      setContrast(1.0);
+      setSaturation(1.0);
+      setExposure(0.0);
+      setImageSrc(bakedDataUrl);
+      pushHistory(bakedDataUrl);
+      setAiStatus('色調調整已成功套用！');
     } catch (err) {
       console.error(err);
       alert(`套用調色失敗: ${err.message}`);
@@ -447,7 +460,7 @@ function App() {
 
   // Close the active file
   const closeFile = () => {
-    setImage(null);
+    setImageSrc(null);
     setImageInfo({ name: '', width: 0, height: 0 });
     setHistory([]);
     setHistoryIndex(-1);
@@ -460,7 +473,7 @@ function App() {
 
   // Image Editing - Copy selected region
   const handleCopy = () => {
-    if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !image) {
+    if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !imageSrc) {
       alert('請先在畫布上框選一個區域再進行複製。');
       return;
     }
@@ -468,22 +481,27 @@ function App() {
     tempCanvas.width = selectionRect.w;
     tempCanvas.height = selectionRect.h;
     const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(
-      image,
-      selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h, // Source
-      0, 0, selectionRect.w, selectionRect.h // Target
-    );
-    setClipboard({
-      dataUrl: tempCanvas.toDataURL(),
-      w: selectionRect.w,
-      h: selectionRect.h
-    });
-    setAiStatus('已複製選取區域！');
+    
+    const img = new Image();
+    img.onload = () => {
+      tempCtx.drawImage(
+        img,
+        selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h,
+        0, 0, selectionRect.w, selectionRect.h
+      );
+      setClipboard({
+        dataUrl: tempCanvas.toDataURL(),
+        w: selectionRect.w,
+        h: selectionRect.h
+      });
+      setAiStatus('已複製選取區域！');
+    };
+    img.src = imageSrc;
   };
 
   // Image Editing - Delete selected region
   const handleDelete = () => {
-    if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !image) {
+    if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !imageSrc) {
       alert('請先在畫布上框選一個區域再進行刪除。');
       return;
     }
@@ -491,75 +509,77 @@ function App() {
     tempCanvas.width = imageInfo.width;
     tempCanvas.height = imageInfo.height;
     const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(image, 0, 0);
+    
+    const img = new Image();
+    img.onload = () => {
+      tempCtx.drawImage(img, 0, 0);
 
-    // Sample surrounding border pixels (3 pixels outside the selection rectangle)
-    const x = Math.round(selectionRect.x);
-    const y = Math.round(selectionRect.y);
-    const w = Math.round(selectionRect.w);
-    const h = Math.round(selectionRect.h);
-    
-    const borderOffset = 3;
-    const points = [];
-    
-    // Top edge points
-    for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 10))) {
-      points.push({ x: x + i, y: y - borderOffset });
-    }
-    // Bottom edge points
-    for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 10))) {
-      points.push({ x: x + i, y: y + h + borderOffset });
-    }
-    // Left edge points
-    for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 10))) {
-      points.push({ x: x - borderOffset, y: y + j });
-    }
-    // Right edge points
-    for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 10))) {
-      points.push({ x: x + w + borderOffset, y: y + j });
-    }
-    
-    let sumR = 0, sumG = 0, sumB = 0, sumA = 0, count = 0;
-    points.forEach(p => {
-      const px = Math.max(0, Math.min(imageInfo.width - 1, p.x));
-      const py = Math.max(0, Math.min(imageInfo.height - 1, p.y));
-      const data = tempCtx.getImageData(px, py, 1, 1).data;
-      if (data[3] > 0) {
-        sumR += data[0];
-        sumG += data[1];
-        sumB += data[2];
-        sumA += data[3];
-        count++;
+      // Sample surrounding border pixels (3 pixels outside the selection rectangle)
+      const x = Math.round(selectionRect.x);
+      const y = Math.round(selectionRect.y);
+      const w = Math.round(selectionRect.w);
+      const h = Math.round(selectionRect.h);
+      
+      const borderOffset = 3;
+      const points = [];
+      
+      // Top edge points
+      for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 10))) {
+        points.push({ x: x + i, y: y - borderOffset });
       }
-    });
+      // Bottom edge points
+      for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 10))) {
+        points.push({ x: x + i, y: y + h + borderOffset });
+      }
+      // Left edge points
+      for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 10))) {
+        points.push({ x: x - borderOffset, y: y + j });
+      }
+      // Right edge points
+      for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 10))) {
+        points.push({ x: x + w + borderOffset, y: y + j });
+      }
+      
+      let sumR = 0, sumG = 0, sumB = 0, sumA = 0, count = 0;
+      points.forEach(p => {
+        const px = Math.max(0, Math.min(imageInfo.width - 1, p.x));
+        const py = Math.max(0, Math.min(imageInfo.height - 1, p.y));
+        const data = tempCtx.getImageData(px, py, 1, 1).data;
+        if (data[3] > 0) {
+          sumR += data[0];
+          sumG += data[1];
+          sumB += data[2];
+          sumA += data[3];
+          count++;
+        }
+      });
 
-    let avgColor = { r: 255, g: 255, b: 255, a: 255 };
-    if (count > 0) {
-      avgColor = {
-        r: Math.round(sumR / count),
-        g: Math.round(sumG / count),
-        b: Math.round(sumB / count),
-        a: Math.round(sumA / count)
-      };
-    }
+      let avgColor = { r: 255, g: 255, b: 255, a: 255 };
+      if (count > 0) {
+        avgColor = {
+          r: Math.round(sumR / count),
+          g: Math.round(sumG / count),
+          b: Math.round(sumB / count),
+          a: Math.round(sumA / count)
+        };
+      }
 
-    // Fill selection area with average surrounding color instead of leaving a transparent/black gap
-    tempCtx.fillStyle = `rgba(${avgColor.r}, ${avgColor.g}, ${avgColor.b}, ${avgColor.a / 255})`;
-    tempCtx.fillRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+      // Fill selection area with average surrounding color instead of leaving a transparent/black gap
+      tempCtx.fillStyle = `rgba(${avgColor.r}, ${avgColor.g}, ${avgColor.b}, ${avgColor.a / 255})`;
+      tempCtx.fillRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
 
-    const clearedImg = new Image();
-    clearedImg.onload = () => {
-      setImage(clearedImg);
+      const clearedDataUrl = tempCanvas.toDataURL();
+      setImageSrc(clearedDataUrl);
       setSelectionRect(null);
       setAiStatus('已刪除選取區域並使用周邊色彩補平！');
-      pushHistory(clearedImg);
+      pushHistory(clearedDataUrl);
     };
-    clearedImg.src = tempCanvas.toDataURL();
+    img.src = imageSrc;
   };
 
   // Image Editing - Blur selected region (Manual Privacy Protection Mask)
   const handleBlurSelection = () => {
-    if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !image) {
+    if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !imageSrc) {
       alert('請先在畫布上框選一個區域再進行模糊。');
       return;
     }
@@ -567,29 +587,30 @@ function App() {
     tempCanvas.width = imageInfo.width;
     tempCanvas.height = imageInfo.height;
     const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(image, 0, 0);
+    
+    const img = new Image();
+    img.onload = () => {
+      tempCtx.drawImage(img, 0, 0);
+      performLocalRedaction(
+        tempCanvas,
+        Math.round(selectionRect.x),
+        Math.round(selectionRect.y),
+        Math.round(selectionRect.w),
+        Math.round(selectionRect.h)
+      );
 
-    performLocalRedaction(
-      tempCanvas,
-      Math.round(selectionRect.x),
-      Math.round(selectionRect.y),
-      Math.round(selectionRect.w),
-      Math.round(selectionRect.h)
-    );
-
-    const blurredImg = new Image();
-    blurredImg.onload = () => {
-      setImage(blurredImg);
+      const blurredDataUrl = tempCanvas.toDataURL();
+      setImageSrc(blurredDataUrl);
       setSelectionRect(null);
       setAiStatus('已模糊框選區域！');
-      pushHistory(blurredImg);
+      pushHistory(blurredDataUrl);
     };
-    blurredImg.src = tempCanvas.toDataURL();
+    img.src = imageSrc;
   };
 
   // Image Editing - Paste copied region
   const handlePaste = () => {
-    if (!clipboard || !image) {
+    if (!clipboard || !imageSrc) {
       alert('剪貼簿目前為空，請先複製一個區域。');
       return;
     }
@@ -617,32 +638,32 @@ function App() {
   };
 
   const confirmPaste = () => {
-    if (!pastedLayer || !image) return;
+    if (!pastedLayer || !imageSrc) return;
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = imageInfo.width;
     tempCanvas.height = imageInfo.height;
     const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(image, 0, 0);
-
-    const pasteImg = new Image();
-    pasteImg.onload = () => {
-      tempCtx.drawImage(pasteImg, Math.round(pastedLayer.x), Math.round(pastedLayer.y), pastedLayer.w, pastedLayer.h);
-
-      const combinedImg = new Image();
-      combinedImg.onload = () => {
-        setImage(combinedImg);
+    
+    const img = new Image();
+    img.onload = () => {
+      tempCtx.drawImage(img, 0, 0);
+      const pasteImg = new Image();
+      pasteImg.onload = () => {
+        tempCtx.drawImage(pasteImg, Math.round(pastedLayer.x), Math.round(pastedLayer.y), pastedLayer.w, pastedLayer.h);
+        const combinedDataUrl = tempCanvas.toDataURL();
+        setImageSrc(combinedDataUrl);
         setPastedLayer(null);
         setAiStatus('已完成貼上與合併影像！');
-        pushHistory(combinedImg);
+        pushHistory(combinedDataUrl);
       };
-      combinedImg.src = tempCanvas.toDataURL();
+      pasteImg.src = pastedLayer.dataUrl;
     };
-    pasteImg.src = pastedLayer.dataUrl;
+    img.src = imageSrc;
   };
 
   // AI Feature - Background Cutout
   const runAiCutout = () => {
-    if (!image || !engineRef.current) return;
+    if (!imageSrc || !engineRef.current) return;
     setAiStatus('載入 ONNX 去背模型...');
     setTimeout(() => {
       setAiStatus('辨識主體邊緣並執行透明度遮罩中...');
@@ -652,99 +673,107 @@ function App() {
         tempCanvas.width = imageInfo.width;
         tempCanvas.height = imageInfo.height;
         const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(image, 0, 0);
         
-        // 2. Run the chroma-key filter on the 2D canvas
-        performLocalCutout(tempCanvas);
-        
-        // 3. Update WebGL image with the new cutout image
-        const cutoutImg = new Image();
-        cutoutImg.onload = () => {
-          setImage(cutoutImg);
+        const img = new Image();
+        img.onload = () => {
+          tempCtx.drawImage(img, 0, 0);
+          performLocalCutout(tempCanvas);
+          const cutoutDataUrl = tempCanvas.toDataURL();
+          setImageSrc(cutoutDataUrl);
           setAiStatus('去背完成 (本地 WebGPU 加速)');
           setHasCutout(true);
-          pushHistory(cutoutImg);
+          pushHistory(cutoutDataUrl);
         };
-        cutoutImg.src = tempCanvas.toDataURL();
+        img.src = imageSrc;
       }, 1000);
     }, 600);
   };
 
   // AI Feature - Privacy Redaction
   const runAiRedact = () => {
-    if (!image || !engineRef.current) return;
+    if (!imageSrc || !engineRef.current) return;
     setAiStatus('掃描敏感個資中 (OCR: 身分證、卡號、人臉)...');
     setTimeout(() => {
       // Realistically inform the user that no typical credentials format was found in this abstract text
-      alert("【DevPixel AI 隱私防護掃描】\n\n掃描完畢！在此文件中未偵測到典型的「身分證字號、信用卡號、或人臉」。\n\n💡 提示：您可以使用左側的「區域框選工具 (M)」框住任何敏感個資（例如數字或關鍵字），接著在右側「影像編輯」分頁點選「模糊框選區域」進行手動安全遮罩。");
+      alert("【DevPixel AI 隱私防護掃描】\n\n掃描完畢！在此文件中未偵測到典型的「身分證字號、信用卡號、或人臉」。\n\n💡 提示：您可以使用左側的「區域框選工具 (M)」框住 any 敏感個資（例如數字或關鍵字），接著在右側「影像編輯」分頁點選「模糊框選區域」進行手動安全遮罩。");
       setAiStatus('掃描完成，未偵測到敏感個資。');
     }, 1000);
   };
 
   // Print Export trigger
   const triggerExport = async (format) => {
-    if (!image) return;
+    if (!imageSrc) return;
 
     try {
       setAiStatus('正在進行色彩轉換與印刷封裝...');
       
-      // 1. Calculate physical print dimensions
-      const printPixels = calculatePixelsForPrint(currentPreset.widthMm, currentPreset.heightMm, dpi);
-      const width = printPixels.widthPx;
-      const height = printPixels.heightPx;
+      const img = new Image();
+      img.onload = async () => {
+        try {
+          // 1. Calculate physical print dimensions
+          const printPixels = calculatePixelsForPrint(currentPreset.widthMm, currentPreset.heightMm, dpi);
+          const width = printPixels.widthPx;
+          const height = printPixels.heightPx;
 
-      // 2. Extract RGB bytes from image resized to print dimension
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = width;
-      tempCanvas.height = height;
-      const ctx = tempCanvas.getContext('2d');
-      ctx.drawImage(image, 0, 0, width, height);
-      
-      const imgData = ctx.getImageData(0, 0, width, height);
-      const rgba = imgData.data;
-      const rgb = new Uint8Array(width * height * 3);
-      for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
-        rgb[j] = rgba[i];
-        rgb[j+1] = rgba[i+1];
-        rgb[j+2] = rgba[i+2];
-      }
+          // 2. Extract RGB bytes from image resized to print dimension
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = width;
+          tempCanvas.height = height;
+          const ctx = tempCanvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          const imgData = ctx.getImageData(0, 0, width, height);
+          const rgba = imgData.data;
+          const rgb = new Uint8Array(width * height * 3);
+          for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
+            rgb[j] = rgba[i];
+            rgb[j+1] = rgba[i+1];
+            rgb[j+2] = rgba[i+2];
+          }
 
-      // Empty profile indicates fallback to mathematical CMYK conversion in Rust
-      const emptyIcc = new Uint8Array(0);
-      let fileBytes;
-      let filename = '';
+          // Empty profile indicates fallback to mathematical CMYK conversion in Rust
+          const emptyIcc = new Uint8Array(0);
+          let fileBytes;
+          let filename = '';
 
-      if (format === 'TIFF (CMYK)') {
-        fileBytes = await exportToCmykTiff(rgb, width, height, emptyIcc);
-        filename = `${imageInfo.name.split('.')[0]}_cmyk.tif`;
-      } else if (format === 'PDF/X (CMYK)') {
-        fileBytes = await exportToPdfX(rgb, width, height, dpi, emptyIcc, showBleed ? 3.0 : 0.0);
-        filename = `${imageInfo.name.split('.')[0]}_print.pdf`;
-      } else {
-        // Normal PNG export
-        tempCanvas.toBlob((blob) => {
+          if (format === 'TIFF (CMYK)') {
+            fileBytes = await exportToCmykTiff(rgb, width, height, emptyIcc);
+            filename = `${imageInfo.name.split('.')[0]}_cmyk.tif`;
+          } else if (format === 'PDF/X (CMYK)') {
+            fileBytes = await exportToPdfX(rgb, width, height, dpi, emptyIcc, showBleed ? 3.0 : 0.0);
+            filename = `${imageInfo.name.split('.')[0]}_print.pdf`;
+          } else {
+            // Normal PNG export
+            tempCanvas.toBlob((blob) => {
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `${imageInfo.name.split('.')[0]}_export.png`;
+              link.click();
+              URL.revokeObjectURL(url);
+              setAiStatus('sRGB PNG 匯出成功！');
+            }, 'image/png');
+            return;
+          }
+
+          // Trigger download for Wasm-generated bytes (TIFF or PDF)
+          const blob = new Blob([fileBytes], { type: format === 'TIFF (CMYK)' ? 'image/tiff' : 'application/pdf' });
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = url;
-          link.download = `${imageInfo.name.split('.')[0]}_export.png`;
+          link.download = filename;
           link.click();
           URL.revokeObjectURL(url);
-          setAiStatus('sRGB PNG 匯出成功！');
-        }, 'image/png');
-        return;
-      }
-
-      // Trigger download for Wasm-generated bytes (TIFF or PDF)
-      const blob = new Blob([fileBytes], { type: format === 'TIFF (CMYK)' ? 'image/tiff' : 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(url);
-      
-      setAiStatus(`${format} 匯出成功！`);
-      alert(`【DevPixel 印刷匯出成功】\n檔名: ${filename}\n尺寸: ${currentPreset.name}\n解析度: ${dpi} DPI\n位元深度: 8-bit CMYK\n\n檔案已完美包含輸出目的描述檔 (Fogra39) 與印刷裁切框設定！`);
+          
+          setAiStatus(`${format} 匯出成功！`);
+          alert(`【DevPixel 印刷匯出成功】\n檔名: ${filename}\n尺寸: ${currentPreset.name}\n解析度: ${dpi} DPI\n位元深度: 8-bit CMYK\n\n檔案已完美包含輸出目的描述檔 (Fogra39) 與印刷裁切框設定！`);
+        } catch (err) {
+          console.error(err);
+          setAiStatus(`匯出失敗: ${err.message}`);
+          alert(`匯出失敗: ${err.message}`);
+        }
+      };
+      img.src = imageSrc;
     } catch (err) {
       console.error(err);
       setAiStatus(`匯出失敗: ${err.message}`);
@@ -796,7 +825,7 @@ function App() {
           </div>
 
           {/* Zoom controls */}
-          {image && (
+          {imageSrc && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '8px' }}>
               <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => setZoom(Math.max(zoom / 1.2, 0.1))} title="縮小">-</button>
               <input 
@@ -815,7 +844,7 @@ function App() {
             </div>
           )}
 
-          <span className="cyber-btn mono-text" onClick={() => image && fitImageToViewport(imageInfo.width, imageInfo.height)}>
+          <span className="cyber-btn mono-text" onClick={() => imageSrc && fitImageToViewport(imageInfo.width, imageInfo.height)}>
             <Maximize2 size={14} /> 適應畫布
           </span>
           <button className="cyber-btn-purple" onClick={resetAdjustments}>
@@ -912,7 +941,7 @@ function App() {
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>適用於印刷廠、大量出版印製（含 3mm 出血線與色彩宣告）。</span>
                 </div>
 
-                {image && (
+                {imageSrc && (
                   <>
                     <div style={{ height: '1px', background: 'var(--border-cyber)', margin: '4px 0' }} />
                     <div 
@@ -1036,7 +1065,7 @@ function App() {
           </div>
         )}
 
-        {!image ? (
+        {!imageSrc ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', width: '100%' }}>
             <Upload size={48} className="title-cyan" style={{ marginBottom: '16px', opacity: 0.7 }} />
             <h3 style={{ fontSize: '18px', fontWeight: '500', color: 'var(--text-primary)' }}>請開啟或拖拽圖片至此處</h3>
@@ -1416,7 +1445,7 @@ function App() {
                 <span className="mono-text title-cyan">{printPixels.widthPx} x {printPixels.heightPx} px</span>
               </div>
 
-              {image && (() => {
+              {imageSrc && (() => {
                 const isSufficient = imageInfo.width >= printPixels.widthPx && imageInfo.height >= printPixels.heightPx;
                 return (
                   <div style={{ marginTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '8px' }}>
