@@ -17,7 +17,11 @@ import {
   CheckCircle2, 
   Info,
   ChevronRight,
-  Maximize2
+  Maximize2,
+  Scissors,
+  Copy,
+  Trash2,
+  Clipboard
 } from 'lucide-react';
 import { 
   WebGLEngine, 
@@ -43,6 +47,16 @@ function App() {
   const [showBleed, setShowBleed] = useState(true);
   const [showGamutWarning, setShowGamutWarning] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Custom print preset dimension values
+  const [customWidth, setCustomWidth] = useState(210);
+  const [customHeight, setCustomHeight] = useState(297);
+
+  // Selection / Marquee editing states
+  const [selectionRect, setSelectionRect] = useState(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectStart, setSelectStart] = useState({ x: 0, y: 0 });
+  const [clipboard, setClipboard] = useState(null);
   
   // WebGL adjust parameters
   const [brightness, setBrightness] = useState(0.0);
@@ -161,11 +175,19 @@ function App() {
     }
   };
 
-  // Mouse pan handling
+  // Mouse pan & marquee selection handling
   const handleMouseDown = (e) => {
-    if (activeTool !== 'pan') return;
-    setIsMouseDown(true);
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    if (activeTool === 'pan') {
+      setIsMouseDown(true);
+      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    } else if (activeTool === 'select' && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const clickX = (e.clientX - rect.left) / zoom;
+      const clickY = (e.clientY - rect.top) / zoom;
+      setIsSelecting(true);
+      setSelectStart({ x: clickX, y: clickY });
+      setSelectionRect({ x: clickX, y: clickY, w: 0, h: 0 });
+    }
   };
 
   const handleMouseMove = (e) => {
@@ -177,15 +199,28 @@ function App() {
       setMouseCoords({ x, y });
     }
 
-    if (!isMouseDown) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y
-    });
+    if (isMouseDown && activeTool === 'pan') {
+      setPan({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      });
+    } else if (isSelecting && activeTool === 'select' && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const currentX = (e.clientX - rect.left) / zoom;
+      const currentY = (e.clientY - rect.top) / zoom;
+      
+      const x = Math.max(0, Math.min(selectStart.x, currentX));
+      const y = Math.max(0, Math.min(selectStart.y, currentY));
+      const w = Math.min(imageInfo.width - x, Math.abs(selectStart.x - currentX));
+      const h = Math.min(imageInfo.height - y, Math.abs(selectStart.y - currentY));
+      
+      setSelectionRect({ x, y, w, h });
+    }
   };
 
   const handleMouseUp = () => {
     setIsMouseDown(false);
+    setIsSelecting(false);
   };
 
   const handleWheel = (e) => {
@@ -201,10 +236,88 @@ function App() {
   };
 
   // Print preset selection calculation
-  const currentPreset = PRINT_SIZES[selectedPreset];
+  const currentPreset = selectedPreset === 'CUSTOM'
+    ? { name: '自訂規格', widthMm: customWidth, heightMm: customHeight }
+    : PRINT_SIZES[selectedPreset];
   const printPixels = currentPreset 
     ? calculatePixelsForPrint(currentPreset.widthMm, currentPreset.heightMm, dpi)
     : { widthPx: 0, heightPx: 0 };
+
+  // Image Editing - Copy selected region
+  const handleCopy = () => {
+    if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !image) {
+      alert('請先在畫布上框選一個區域再進行複製。');
+      return;
+    }
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = selectionRect.w;
+    tempCanvas.height = selectionRect.h;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(
+      image,
+      selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h, // Source
+      0, 0, selectionRect.w, selectionRect.h // Target
+    );
+    setClipboard({
+      dataUrl: tempCanvas.toDataURL(),
+      w: selectionRect.w,
+      h: selectionRect.h
+    });
+    setAiStatus('已複製選取區域！');
+  };
+
+  // Image Editing - Delete selected region
+  const handleDelete = () => {
+    if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !image) {
+      alert('請先在畫布上框選一個區域再進行刪除。');
+      return;
+    }
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = imageInfo.width;
+    tempCanvas.height = imageInfo.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(image, 0, 0);
+    tempCtx.clearRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+
+    const clearedImg = new Image();
+    clearedImg.onload = () => {
+      setImage(clearedImg);
+      setSelectionRect(null);
+      setAiStatus('已刪除選取區域！');
+    };
+    clearedImg.src = tempCanvas.toDataURL();
+  };
+
+  // Image Editing - Paste copied region
+  const handlePaste = () => {
+    if (!clipboard || !image) {
+      alert('剪貼簿目前為空，請先複製一個區域。');
+      return;
+    }
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = imageInfo.width;
+    tempCanvas.height = imageInfo.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(image, 0, 0);
+
+    const pasteImg = new Image();
+    pasteImg.onload = () => {
+      // Paste at center of the image
+      const px = Math.round((imageInfo.width - clipboard.w) / 2);
+      const py = Math.round((imageInfo.height - clipboard.h) / 2);
+      tempCtx.drawImage(pasteImg, px, py);
+
+      const pastedImg = new Image();
+      pastedImg.onload = () => {
+        setImage(pastedImg);
+        // Automatically select the pasted region
+        setSelectionRect({ x: px, y: py, w: clipboard.w, h: clipboard.h });
+        setAiStatus('已貼上影像區域！');
+      };
+      pastedImg.src = tempCanvas.toDataURL();
+    };
+    pasteImg.src = clipboard.dataUrl;
+  };
 
   // AI Feature - Background Cutout
   const runAiCutout = () => {
@@ -449,6 +562,17 @@ function App() {
         >
           <Fingerprint size={20} />
         </div>
+
+        <div 
+          className={`tool-icon-btn hover-active ${activeTool === 'select' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTool('select');
+            setActiveTab('edit');
+          }}
+          title="區域框選工具 (M)"
+        >
+          <Scissors size={20} />
+        </div>
       </aside>
 
       {/* 3. Canvas Viewport (Center) */}
@@ -484,6 +608,21 @@ function App() {
               border: '1px solid rgba(255,255,255,0.1)'
             }}
           />
+
+          {/* Dashed marquee selection overlay */}
+          {activeTool === 'select' && selectionRect && (
+            <div style={{
+              position: 'absolute',
+              left: `${selectionRect.x}px`,
+              top: `${selectionRect.y}px`,
+              width: `${selectionRect.w}px`,
+              height: `${selectionRect.h}px`,
+              border: '2px dashed var(--accent-cyan)',
+              boxShadow: '0 0 10px rgba(0, 229, 255, 0.4)',
+              backgroundColor: 'rgba(0, 229, 255, 0.12)',
+              pointerEvents: 'none'
+            }} />
+          )}
 
           {/* Gamut Warning diagonal stripes mask */}
           {showGamutWarning && (
@@ -592,6 +731,14 @@ function App() {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <Sparkles size={14} /> AI 助理
+            </div>
+          </div>
+          <div 
+            className={`sidebar-tab ${activeTab === 'edit' ? 'active' : ''}`}
+            onClick={() => setActiveTab('edit')}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <Scissors size={14} /> 影像編輯
             </div>
           </div>
         </div>
@@ -703,7 +850,37 @@ function App() {
                   <p className="preset-card-sub">{PRINT_SIZES[key].widthMm}x{PRINT_SIZES[key].heightMm} mm</p>
                 </div>
               ))}
+              <div 
+                className={`preset-card ${selectedPreset === 'CUSTOM' ? 'active' : ''}`}
+                onClick={() => setSelectedPreset('CUSTOM')}
+              >
+                <p className="preset-card-title" style={{ color: 'var(--accent-cyan)' }}>自訂規格</p>
+                <p className="preset-card-sub">{customWidth}x{customHeight} mm</p>
+              </div>
             </div>
+
+            {selectedPreset === 'CUSTOM' && (
+              <div className="glass-panel" style={{ padding: '12px', marginBottom: '16px', display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.3)' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>寬度 (mm)</label>
+                  <input 
+                    type="number" 
+                    value={customWidth} 
+                    onChange={(e) => setCustomWidth(Math.max(1, Number(e.target.value)))}
+                    style={{ width: '100%', background: 'var(--bg-cyber-dark)', border: '1px solid var(--border-cyber)', borderRadius: '4px', padding: '4px 6px', color: 'var(--text-primary)', marginTop: '4px', fontSize: '12px', outline: 'none' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>高度 (mm)</label>
+                  <input 
+                    type="number" 
+                    value={customHeight} 
+                    onChange={(e) => setCustomHeight(Math.max(1, Number(e.target.value)))}
+                    style={{ width: '100%', background: 'var(--bg-cyber-dark)', border: '1px solid var(--border-cyber)', borderRadius: '4px', padding: '4px 6px', color: 'var(--text-primary)', marginTop: '4px', fontSize: '12px', outline: 'none' }}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="glass-panel" style={{ padding: '12px', marginBottom: '20px', background: 'rgba(0,0,0,0.2)' }}>
               <h4 style={{ fontSize: '12px', color: 'var(--accent-cyan)', marginBottom: '6px', fontWeight: 'bold' }}>
@@ -787,6 +964,76 @@ function App() {
                   <Info size={12} className="title-cyan" />
                   <span className="mono-text" style={{ fontSize: '11px', color: 'var(--text-primary)' }}>{aiStatus}</span>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Image Selection & Editing */}
+        {activeTab === 'edit' && (
+          <div style={{ padding: '20px' }}>
+            <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '12px', fontWeight: 'bold' }}>
+              圖片框選與編輯功能
+            </h3>
+            
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
+              請先在左側工具列啟用「<b>區域框選工具 (M)</b>」，然後在圖片上拖曳滑鼠以框選任何區域。
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button 
+                className="cyber-btn"
+                onClick={handleCopy}
+                style={{ justifyContent: 'center', padding: '10px' }}
+                disabled={!selectionRect}
+              >
+                <Copy size={16} /> 複製框選區域 (Copy)
+              </button>
+
+              <button 
+                className="cyber-btn-purple"
+                onClick={handlePaste}
+                style={{ justifyContent: 'center', padding: '10px' }}
+                disabled={!clipboard}
+              >
+                <Clipboard size={16} /> 貼上至影像中心 (Paste)
+              </button>
+
+              <button 
+                className="cyber-btn"
+                onClick={handleDelete}
+                style={{ justifyContent: 'center', padding: '10px', color: '#ff4d4d', borderColor: 'rgba(255, 77, 77, 0.2)' }}
+                disabled={!selectionRect}
+              >
+                <Trash2 size={16} /> 刪除框選像素 (Delete)
+              </button>
+            </div>
+
+            {selectionRect && (
+              <div className="glass-panel" style={{ marginTop: '20px', padding: '12px', background: 'rgba(0,0,0,0.2)' }}>
+                <h4 style={{ fontSize: '12px', color: 'var(--accent-cyan)', marginBottom: '6px', fontWeight: 'bold' }}>
+                  目前框選範圍
+                </h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                  <span>起始坐標 (X, Y):</span>
+                  <span className="mono-text">{Math.round(selectionRect.x)}, {Math.round(selectionRect.y)} px</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  <span>寬高尺寸 (W x H):</span>
+                  <span className="mono-text">{Math.round(selectionRect.w)} x {Math.round(selectionRect.h)} px</span>
+                </div>
+              </div>
+            )}
+
+            {clipboard && (
+              <div className="glass-panel glow-cyan" style={{ marginTop: '16px', padding: '10px', background: 'rgba(0,229,255,0.02)', textAlign: 'center' }}>
+                <p style={{ fontSize: '11px', color: 'var(--accent-cyan)', marginBottom: '8px' }}>剪貼簿緩衝區 (已就緒)</p>
+                <img 
+                  src={clipboard.dataUrl} 
+                  alt="Clipboard preview" 
+                  style={{ maxHeight: '80px', maxWidth: '100%', border: '1px solid var(--border-cyber)', borderRadius: '4px' }}
+                />
+                <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>尺寸: {clipboard.w}x{clipboard.h} px</p>
               </div>
             )}
           </div>

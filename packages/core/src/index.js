@@ -238,6 +238,9 @@ export class WebGLEngine {
  * Standard Print Dimensions helper configuration
  */
 export const PRINT_SIZES = {
+  A0: { name: 'A0 (841 x 1189 mm)', widthMm: 841, heightMm: 1189 },
+  A1: { name: 'A1 (594 x 841 mm)', widthMm: 594, heightMm: 841 },
+  A2: { name: 'A2 (420 x 594 mm)', widthMm: 420, heightMm: 594 },
   A3: { name: 'A3 (297 x 420 mm)', widthMm: 297, heightMm: 420 },
   A4: { name: 'A4 (210 x 297 mm)', widthMm: 210, heightMm: 297 },
   A5: { name: 'A5 (148 x 210 mm)', widthMm: 148, heightMm: 210 },
