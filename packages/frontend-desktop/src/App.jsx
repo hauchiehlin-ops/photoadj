@@ -60,6 +60,7 @@ function App() {
   const [selectedPreset, setSelectedPreset] = useState('A4');
   const [showBleed, setShowBleed] = useState(true);
   const [showGamutWarning, setShowGamutWarning] = useState(false);
+  const [printOrientation, setPrintOrientation] = useState('PORTRAIT'); // 'PORTRAIT' or 'LANDSCAPE'
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -124,6 +125,7 @@ function App() {
         height: img.naturalHeight
       });
       fitImageToViewport(img.naturalWidth, img.naturalHeight);
+      setPrintOrientation(img.naturalWidth > img.naturalHeight ? 'LANDSCAPE' : 'PORTRAIT');
       
       // Init history stack
       setHistory([DEFAULT_SAMPLE_IMAGE]);
@@ -252,6 +254,7 @@ function App() {
           height: img.naturalHeight
         });
         fitImageToViewport(img.naturalWidth, img.naturalHeight);
+        setPrintOrientation(img.naturalWidth > img.naturalHeight ? 'LANDSCAPE' : 'PORTRAIT');
         resetAdjustments();
         setHasCutout(false);
         setHasRedacted(false);
@@ -385,10 +388,24 @@ function App() {
     setZoom(nextZoom);
   };
 
-  // Print preset selection calculation
-  const currentPreset = selectedPreset === 'CUSTOM'
-    ? { name: '自訂規格', widthMm: customWidth, heightMm: customHeight }
-    : PRINT_SIZES[selectedPreset];
+  // Print preset selection calculation with orientation adaptation (swaps width/height if needed)
+  const currentPreset = (() => {
+    const raw = selectedPreset === 'CUSTOM'
+      ? { name: '自訂規格', widthMm: customWidth, heightMm: customHeight }
+      : PRINT_SIZES[selectedPreset];
+    if (!raw) return null;
+    const isCurrentlyLandscape = raw.widthMm > raw.heightMm;
+    const shouldBeLandscape = printOrientation === 'LANDSCAPE';
+    if (isCurrentlyLandscape !== shouldBeLandscape) {
+      return {
+        ...raw,
+        widthMm: raw.heightMm,
+        heightMm: raw.widthMm
+      };
+    }
+    return raw;
+  })();
+
   const printPixels = currentPreset 
     ? calculatePixelsForPrint(currentPreset.widthMm, currentPreset.heightMm, dpi)
     : { widthPx: 0, heightPx: 0 };
@@ -1435,24 +1452,61 @@ function App() {
             <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '12px', fontWeight: 'bold' }}>
               一鍵物理規格重設
             </h3>
+
+            {/* Layout Orientation Switcher */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>版面方向 (Orientation)</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  className={`cyber-btn ${printOrientation === 'PORTRAIT' ? 'active' : ''}`}
+                  onClick={() => setPrintOrientation('PORTRAIT')}
+                  style={{ padding: '2px 8px', fontSize: '11px', height: '22px' }}
+                >
+                  直向
+                </button>
+                <button
+                  className={`cyber-btn ${printOrientation === 'LANDSCAPE' ? 'active' : ''}`}
+                  onClick={() => setPrintOrientation('LANDSCAPE')}
+                  style={{ padding: '2px 8px', fontSize: '11px', height: '22px' }}
+                >
+                  橫向
+                </button>
+              </div>
+            </div>
             
             <div className="preset-grid">
-              {Object.keys(PRINT_SIZES).map((key) => (
-                <div 
-                  key={key}
-                  className={`preset-card ${selectedPreset === key ? 'active' : ''}`}
-                  onClick={() => setSelectedPreset(key)}
-                >
-                  <p className="preset-card-title">{key}</p>
-                  <p className="preset-card-sub">{PRINT_SIZES[key].widthMm}x{PRINT_SIZES[key].heightMm} mm</p>
-                </div>
-              ))}
+              {Object.keys(PRINT_SIZES).map((key) => {
+                const w = PRINT_SIZES[key].widthMm;
+                const h = PRINT_SIZES[key].heightMm;
+                const isCurrentlyLandscape = w > h;
+                const shouldBeLandscape = printOrientation === 'LANDSCAPE';
+                const finalW = isCurrentlyLandscape !== shouldBeLandscape ? h : w;
+                const finalH = isCurrentlyLandscape !== shouldBeLandscape ? w : h;
+                return (
+                  <div 
+                    key={key}
+                    className={`preset-card ${selectedPreset === key ? 'active' : ''}`}
+                    onClick={() => setSelectedPreset(key)}
+                  >
+                    <p className="preset-card-title">{key}</p>
+                    <p className="preset-card-sub">{finalW}x{finalH} mm</p>
+                  </div>
+                );
+              })}
               <div 
                 className={`preset-card ${selectedPreset === 'CUSTOM' ? 'active' : ''}`}
                 onClick={() => setSelectedPreset('CUSTOM')}
               >
                 <p className="preset-card-title" style={{ color: 'var(--accent-cyan)' }}>自訂規格</p>
-                <p className="preset-card-sub">{customWidth}x{customHeight} mm</p>
+                <p className="preset-card-sub">
+                  {(() => {
+                    const isCurrentlyLandscape = customWidth > customHeight;
+                    const shouldBeLandscape = printOrientation === 'LANDSCAPE';
+                    const finalW = isCurrentlyLandscape !== shouldBeLandscape ? customHeight : customWidth;
+                    const finalH = isCurrentlyLandscape !== shouldBeLandscape ? customWidth : customHeight;
+                    return `${finalW}x${finalH}`;
+                  })()} mm
+                </p>
               </div>
             </div>
 
