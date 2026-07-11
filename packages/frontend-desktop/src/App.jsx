@@ -122,6 +122,7 @@ function App() {
   // Mouse and Pan/Zoom coordinates
   const [zoom, setZoom] = useState(1.0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const hasManuallyAdjustedRef = useRef(false);
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0 });
@@ -143,6 +144,7 @@ function App() {
     img.crossOrigin = 'anonymous';
     img.src = DEFAULT_SAMPLE_IMAGE;
     img.onload = () => {
+      hasManuallyAdjustedRef.current = false;
       setImageSrc(DEFAULT_SAMPLE_IMAGE);
       setImageInfo({
         name: 'spaceman_neon.png',
@@ -157,6 +159,32 @@ function App() {
       setHistoryIndex(0);
     };
   }, []);
+
+  // Recalculate zoom fitting dynamically when container dimensions stabilize or change (e.g. windows resize, high DPI scaling adjustments)
+  useEffect(() => {
+    if (!containerRef.current || !imageSrc || !imageInfo.width || !imageInfo.height) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      
+      // If the container size is 0, wait until it renders with positive dimensions
+      if (width <= 0 || height <= 0) return;
+
+      // Only auto-fit if the user has not manually zoomed or panned
+      if (!hasManuallyAdjustedRef.current) {
+        const cw = Math.max(100, width - 80);
+        const ch = Math.max(100, height - 80);
+        const scale = Math.max(0.05, Math.min(cw / imageInfo.width, ch / imageInfo.height, 1.0));
+        setZoom(scale);
+        setPan({ x: 0, y: 0 });
+      }
+    });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [imageSrc, imageInfo.width, imageInfo.height]);
 
   // Initialize keyboard shortcuts & Spacebar panning listener
   useEffect(() => {
@@ -272,6 +300,7 @@ function App() {
       const dataUrl = event.target.result;
       const img = new Image();
       img.onload = () => {
+        hasManuallyAdjustedRef.current = false;
         setImageSrc(dataUrl);
         setImageInfo({
           name: file.name,
@@ -376,6 +405,7 @@ function App() {
 
     const isPanningMode = activeTool === 'pan' || spacePressed;
     if (isMouseDown && isPanningMode) {
+      hasManuallyAdjustedRef.current = true;
       setPan({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y
@@ -403,6 +433,7 @@ function App() {
   const handleWheel = (e) => {
     if (!imageSrc) return;
     e.preventDefault();
+    hasManuallyAdjustedRef.current = true;
     const zoomFactor = 1.1;
     let nextZoom = zoom;
     if (e.deltaY < 0) {
@@ -897,24 +928,29 @@ function App() {
           {/* Zoom controls */}
           {imageSrc && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '8px' }}>
-              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => setZoom(Math.max(zoom / 1.2, 0.1))} title="縮小">-</button>
+              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => { hasManuallyAdjustedRef.current = true; setZoom(Math.max(zoom / 1.2, 0.1)); }} title="縮小">-</button>
               <input 
                 type="range" 
                 min="0.1" 
                 max="8.0" 
                 step="0.05" 
                 value={zoom} 
-                onChange={(e) => setZoom(Number(e.target.value))} 
+                onChange={(e) => { hasManuallyAdjustedRef.current = true; setZoom(Number(e.target.value)); }} 
                 style={{ width: '70px', height: '3px', accentColor: 'var(--accent-cyan)' }}
               />
-              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => setZoom(Math.min(zoom * 1.2, 8.0))} title="放大">+</button>
+              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => { hasManuallyAdjustedRef.current = true; setZoom(Math.min(zoom * 1.2, 8.0)); }} title="放大">+</button>
               <span className="mono-text" style={{ fontSize: '11px', minWidth: '35px', textAlign: 'right' }}>
                 {Math.round(zoom * 100)}%
               </span>
             </div>
           )}
 
-          <span className="cyber-btn mono-text" onClick={() => imageSrc && fitImageToViewport(imageInfo.width, imageInfo.height)}>
+          <span className="cyber-btn mono-text" onClick={() => {
+            if (imageSrc) {
+              hasManuallyAdjustedRef.current = false;
+              fitImageToViewport(imageInfo.width, imageInfo.height);
+            }
+          }}>
             <Maximize2 size={14} /> 適應畫布
           </span>
           <button className="cyber-btn-purple" onClick={resetAdjustments}>
