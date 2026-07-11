@@ -323,7 +323,7 @@ export async function exportToPdfX(rgbData, width, height, dpi, iccProfileBytes,
 
 /**
  * Performs a high-performance chroma-key cutout on a canvas.
- * Removes the dark space background of the calibration target, demonstrating local AI subject extraction.
+ * Automatically detects whether background is light (documents) or dark (photos) and extracts the subject.
  * @param {HTMLCanvasElement} canvas 
  */
 export function performLocalCutout(canvas) {
@@ -331,15 +331,38 @@ export function performLocalCutout(canvas) {
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imgData.data;
 
-  // Background threshold: remove very dark pixels (space background)
+  // Sample top-left corner pixel color
+  const bgR = data[0];
+  const bgG = data[1];
+  const bgB = data[2];
+  const bgA = data[3];
+
+  // Determine if background is light or dark
+  const bgLuminance = 0.299 * bgR + 0.587 * bgG + 0.114 * bgB;
+  const isLightBg = bgLuminance > 120 && bgA > 0;
+
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
-    
-    // If the color matches the dark background gradient (under a certain threshold)
-    if (r < 30 && g < 35 && b < 50) {
-      data[i + 3] = 0; // Set alpha to 0 (cutout)
+    const a = data[i + 3];
+
+    if (a === 0) continue;
+
+    if (isLightBg) {
+      // Light paper background extraction
+      const colorDiff = Math.sqrt((r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2);
+      const isVeryBright = r > 215 && g > 215 && b > 210;
+      if (colorDiff < 75 || isVeryBright) {
+        data[i + 3] = 0; // Clear paper background
+      }
+    } else {
+      // Dark target background extraction
+      const colorDiff = Math.sqrt((r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2);
+      const isVeryDark = r < 35 && g < 35 && b < 50;
+      if (colorDiff < 45 || isVeryDark) {
+        data[i + 3] = 0; // Clear dark space background
+      }
     }
   }
 

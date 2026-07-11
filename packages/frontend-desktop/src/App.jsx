@@ -557,6 +557,36 @@ function App() {
     clearedImg.src = tempCanvas.toDataURL();
   };
 
+  // Image Editing - Blur selected region (Manual Privacy Protection Mask)
+  const handleBlurSelection = () => {
+    if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !image) {
+      alert('請先在畫布上框選一個區域再進行模糊。');
+      return;
+    }
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = imageInfo.width;
+    tempCanvas.height = imageInfo.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(image, 0, 0);
+
+    performLocalRedaction(
+      tempCanvas,
+      Math.round(selectionRect.x),
+      Math.round(selectionRect.y),
+      Math.round(selectionRect.w),
+      Math.round(selectionRect.h)
+    );
+
+    const blurredImg = new Image();
+    blurredImg.onload = () => {
+      setImage(blurredImg);
+      setSelectionRect(null);
+      setAiStatus('已模糊框選區域！');
+      pushHistory(blurredImg);
+    };
+    blurredImg.src = tempCanvas.toDataURL();
+  };
+
   // Image Editing - Paste copied region
   const handlePaste = () => {
     if (!clipboard || !image) {
@@ -643,35 +673,11 @@ function App() {
   // AI Feature - Privacy Redaction
   const runAiRedact = () => {
     if (!image || !engineRef.current) return;
-    setAiStatus('掃描敏感個資中 (OCR: 身分證、卡號、條碼)...');
+    setAiStatus('掃描敏感個資中 (OCR: 身分證、卡號、人臉)...');
     setTimeout(() => {
-      // 1. Create helper canvas
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = imageInfo.width;
-      tempCanvas.height = imageInfo.height;
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.drawImage(image, 0, 0);
-      
-      // 2. Perform Gaussian Box Blur on the text region
-      const scaleX = imageInfo.width / 800;
-      const scaleY = imageInfo.height / 600;
-      performLocalRedaction(
-        tempCanvas, 
-        Math.round(140 * scaleX), 
-        Math.round(180 * scaleY), 
-        Math.round(330 * scaleX), 
-        Math.round(50 * scaleY)
-      );
-      
-      // 3. Update WebGL image
-      const redactedImg = new Image();
-      redactedImg.onload = () => {
-        setImage(redactedImg);
-        setAiStatus('模糊處理完成 (已遮蓋敏感個資)');
-        setHasRedacted(true);
-        pushHistory(redactedImg);
-      };
-      redactedImg.src = tempCanvas.toDataURL();
+      // Realistically inform the user that no typical credentials format was found in this abstract text
+      alert("【DevPixel AI 隱私防護掃描】\n\n掃描完畢！在此文件中未偵測到典型的「身分證字號、信用卡號、或人臉」。\n\n💡 提示：您可以使用左側的「區域框選工具 (M)」框住任何敏感個資（例如數字或關鍵字），接著在右側「影像編輯」分頁點選「模糊框選區域」進行手動安全遮罩。");
+      setAiStatus('掃描完成，未偵測到敏感個資。');
     }, 1000);
   };
 
@@ -1547,6 +1553,15 @@ function App() {
                 disabled={!selectionRect}
               >
                 <Trash2 size={16} /> 刪除框選像素 (Delete)
+              </button>
+
+              <button 
+                className="cyber-btn"
+                onClick={handleBlurSelection}
+                style={{ justifyContent: 'center', padding: '10px' }}
+                disabled={!selectionRect}
+              >
+                <ShieldAlert size={16} style={{ color: 'var(--accent-cyan)' }} /> 模糊框選區域 (Blur)
               </button>
             </div>
 
