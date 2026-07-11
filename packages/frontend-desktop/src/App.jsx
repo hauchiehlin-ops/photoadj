@@ -35,7 +35,8 @@ import {
   exportToCmykTiff,
   exportToPdfX,
   performLocalCutout,
-  performLocalRedaction
+  performLocalRedaction,
+  resampleImage
 } from '@devpixel/core';
 
 // Sample Base64 image so the app is instantly active upon launching
@@ -53,14 +54,37 @@ function App() {
   const handleDpiPresetChange = (val) => {
     setDpiPreset(val);
     if (val !== 'CUSTOM') {
-      setDpi(Number(val));
-      setDpiInputText(val);
+      const numVal = Number(val);
+      const finalVal = lockMinDpi ? Math.max(100, numVal) : numVal;
+      setDpi(finalVal);
+      setDpiInputText(String(finalVal));
     }
+  };
+
+  const toggleLockMinDpi = (enabled) => {
+    setLockMinDpi(enabled);
+    if (enabled && dpi < 100) {
+      setDpi(100);
+      setDpiInputText('100');
+    }
+  };
+
+  const autoMatchDpi = () => {
+    if (!imageSrc || !currentPreset) return;
+    const idealDpi = Math.round(imageInfo.width * 25.4 / currentPreset.widthMm);
+    const minDpi = lockMinDpi ? 100 : 10;
+    const clamped = Math.max(minDpi, Math.min(2400, idealDpi));
+    setDpi(clamped);
+    setDpiInputText(String(clamped));
+    setDpiPreset('CUSTOM');
+    setAiStatus(`已自動適配最佳印刷解析度: ${clamped} DPI (1:1 像素無損輸出)`);
   };
   const [selectedPreset, setSelectedPreset] = useState('A4');
   const [showBleed, setShowBleed] = useState(true);
   const [showGamutWarning, setShowGamutWarning] = useState(false);
   const [printOrientation, setPrintOrientation] = useState('PORTRAIT'); // 'PORTRAIT' or 'LANDSCAPE'
+  const [upscaleAlgorithm, setUpscaleAlgorithm] = useState('LANCZOS3'); // 'BILINEAR' | 'BICUBIC' | 'LANCZOS3'
+  const [lockMinDpi, setLockMinDpi] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -763,12 +787,9 @@ function App() {
           const width = printPixels.widthPx;
           const height = printPixels.heightPx;
 
-          // 2. Extract RGB bytes from image resized to print dimension
-          const tempCanvas = document.createElement('canvas');
-          tempCanvas.width = width;
-          tempCanvas.height = height;
+          // 2. Extract RGB bytes from image resized to print dimension using selected high-quality upsampler
+          const tempCanvas = resampleImage(img, width, height, upscaleAlgorithm);
           const ctx = tempCanvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
           
           const imgData = ctx.getImageData(0, 0, width, height);
           const rgba = imgData.data;
@@ -922,18 +943,20 @@ function App() {
                 <span style={{ fontSize: '10px', color: 'var(--accent-cyan)' }}>數值</span>
                 <input 
                   type="number" 
-                  min="10" 
+                  min={lockMinDpi ? "100" : "10"} 
                   max="2400" 
                   value={dpiInputText} 
                   onChange={(e) => {
                     setDpiInputText(e.target.value);
                     const val = Number(e.target.value);
                     if (!isNaN(val) && val > 0) {
-                      setDpi(Math.min(2400, val));
+                      const minDpi = lockMinDpi ? 100 : 10;
+                      setDpi(Math.min(2400, Math.max(minDpi, val)));
                     }
                   }}
                   onBlur={() => {
-                    const val = Math.max(10, Math.min(2400, Number(dpiInputText) || 300));
+                    const minDpi = lockMinDpi ? 100 : 10;
+                    const val = Math.max(minDpi, Math.min(2400, Number(dpiInputText) || 300));
                     setDpi(val);
                     setDpiInputText(String(val));
                   }}
@@ -1580,6 +1603,87 @@ function App() {
                 );
               })()}
             </div>
+
+            {/* Print Scaling & Quality Optimizer Panel */}
+            {(() => {
+              const dpiQuality = (() => {
+                if (dpi >= 300) return { label: '🌟 完美 (Perfect)', color: 'var(--accent-green)', bg: 'rgba(0, 230, 118, 0.08)', desc: '適合近距離手持閱讀（如書籍、相冊、傳單）' };
+                if (dpi >= 150) return { label: '🟢 優良 (Fine)', color: 'var(--accent-cyan)', bg: 'rgba(0, 229, 255, 0.08)', desc: '適合近觀海報、室內廣告（最佳觀賞距離 0.5~1米）' };
+                if (dpi >= 90) return { label: '🟡 接受 (Acceptable)', color: '#ffc107', bg: 'rgba(255, 193, 7, 0.08)', desc: '適合遠觀海報、展場背景牆（最佳觀賞距離 1~2米）' };
+                return { label: '🔴 嚴重不足 (Poor)', color: '#ff4d4d', bg: 'rgba(255, 77, 77, 0.08)', desc: '不適合大版面輸出，容易模糊（建議更換圖檔或降低版面尺寸）' };
+              })();
+              const bestViewingDistance = (150 / dpi).toFixed(1);
+
+              return (
+                <div className="glass-panel glow-cyan" style={{ padding: '14px', marginBottom: '20px', background: 'rgba(10, 15, 25, 0.45)', border: '1px solid var(--border-cyber)' }}>
+                  <h4 style={{ fontSize: '12px', color: 'var(--accent-cyan)', marginBottom: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ShieldAlert size={14} style={{ color: 'var(--accent-cyan)' }} />
+                    印前縮放與品質調校助理
+                  </h4>
+
+                  {/* 1. Quality badge & viewing distance */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>輸出品質評級:</span>
+                      <span style={{ 
+                        fontSize: '11px', 
+                        fontWeight: 'bold', 
+                        padding: '2px 8px', 
+                        borderRadius: '4px',
+                        color: dpiQuality.color,
+                        background: dpiQuality.bg,
+                        border: `1px solid ${dpiQuality.color}40`
+                      }}>
+                        {dpiQuality.label}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.3', padding: '4px 6px', background: 'rgba(0,0,0,0.15)', borderRadius: '4px' }}>
+                      {dpiQuality.desc}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      <span>建議最佳觀看距離:</span>
+                      <span className="mono-text title-cyan" style={{ fontWeight: 'bold' }}>{bestViewingDistance} 公尺以上</span>
+                    </div>
+                  </div>
+
+                  {/* 2. Resampling Algorithm Selection */}
+                  <div style={{ marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>超採樣放大演算法</label>
+                    <select
+                      value={upscaleAlgorithm}
+                      onChange={(e) => setUpscaleAlgorithm(e.target.value)}
+                      className="mono-text"
+                      style={{ width: '100%', background: 'var(--bg-cyber-dark)', color: 'var(--text-primary)', border: '1px solid var(--border-cyber)', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', outline: 'none' }}
+                    >
+                      <option value="BILINEAR">Bilinear (普通雙線性 - 邊緣較軟)</option>
+                      <option value="BICUBIC">Bicubic (雙三次卷積 - 銳化細節)</option>
+                      <option value="LANCZOS3">Lanczos-3 (印刷級 sinc 超採樣 - 最清晰)</option>
+                    </select>
+                  </div>
+
+                  {/* 3. Safety Guard and Auto Adapt */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>強制鎖定最低安全解析度 (100 DPI)</span>
+                      <input 
+                        type="checkbox" 
+                        checked={lockMinDpi} 
+                        onChange={(e) => toggleLockMinDpi(e.target.checked)}
+                        style={{ width: '14px', height: '14px', accentColor: 'var(--accent-cyan)' }}
+                      />
+                    </div>
+                    
+                    <button 
+                      className="cyber-btn"
+                      onClick={autoMatchDpi}
+                      style={{ width: '100%', justifyContent: 'center', fontSize: '11px', padding: '6px', height: '28px' }}
+                    >
+                      DPI 與目前影像 1:1 無損最佳化適配
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>顯示 3mm 出血線</span>

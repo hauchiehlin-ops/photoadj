@@ -454,4 +454,146 @@ export function performLocalRedaction(canvas, rx, ry, rw, rh) {
   ctx.putImageData(imgData, rx, ry);
 }
 
+/**
+ * Resamples an image using different interpolation filters (Bilinear, Bicubic, Lanczos-3)
+ * @param {HTMLImageElement} img Source image element
+ * @param {number} dstW Destination width
+ * @param {number} dstH Destination height
+ * @param {'BILINEAR' | 'BICUBIC' | 'LANCZOS3'} algorithm
+ * @returns {HTMLCanvasElement} A canvas with the resampled image
+ */
+export function resampleImage(img, dstW, dstH, algorithm) {
+  const srcCanvas = document.createElement('canvas');
+  srcCanvas.width = img.naturalWidth;
+  srcCanvas.height = img.naturalHeight;
+  const srcCtx = srcCanvas.getContext('2d');
+  srcCtx.drawImage(img, 0, 0);
+  const srcData = srcCtx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+  const srcPixels = srcData.data;
+  const srcW = img.naturalWidth;
+  const srcH = img.naturalHeight;
+
+  const dstCanvas = document.createElement('canvas');
+  dstCanvas.width = dstW;
+  dstCanvas.height = dstH;
+  const dstCtx = dstCanvas.getContext('2d');
+  
+  if (algorithm === 'BILINEAR') {
+    dstCtx.imageSmoothingEnabled = true;
+    dstCtx.imageSmoothingQuality = 'high';
+    dstCtx.drawImage(img, 0, 0, dstW, dstH);
+    return dstCanvas;
+  }
+
+  const dstData = dstCtx.createImageData(dstW, dstH);
+  const dstPixels = dstData.data;
+
+  if (algorithm === 'BICUBIC') {
+    const cubicWeight = (x) => {
+      const absX = Math.abs(x);
+      const a = -0.5;
+      if (absX <= 1) {
+        return (a + 2) * absX * absX * absX - (a + 3) * absX * absX + 1;
+      } else if (absX < 2) {
+        return a * absX * absX * absX - 5 * a * absX * absX + 8 * a * absX - 4 * a;
+      }
+      return 0.0;
+    };
+
+    for (let dy = 0; dy < dstH; dy++) {
+      const srcY = (dy + 0.5) * (srcH / dstH) - 0.5;
+      const yInt = Math.floor(srcY);
+      const yDiff = srcY - yInt;
+
+      for (let dx = 0; dx < dstW; dx++) {
+        const srcX = (dx + 0.5) * (srcW / dstW) - 0.5;
+        const xInt = Math.floor(srcX);
+        const xDiff = srcX - xInt;
+
+        let rSum = 0, gSum = 0, bSum = 0, aSum = 0, weightSum = 0;
+
+        for (let m = -1; m <= 2; m++) {
+          const sy = Math.min(Math.max(yInt + m, 0), srcH - 1);
+          const wy = cubicWeight(m - yDiff);
+
+          for (let n = -1; n <= 2; n++) {
+            const sx = Math.min(Math.max(xInt + n, 0), srcW - 1);
+            const wx = cubicWeight(n - xDiff);
+            const weight = wx * wy;
+
+            if (weight !== 0) {
+              const srcIdx = (sy * srcW + sx) * 4;
+              rSum += srcPixels[srcIdx] * weight;
+              gSum += srcPixels[srcIdx + 1] * weight;
+              bSum += srcPixels[srcIdx + 2] * weight;
+              aSum += srcPixels[srcIdx + 3] * weight;
+              weightSum += weight;
+            }
+          }
+        }
+
+        const dstIdx = (dy * dstW + dx) * 4;
+        dstPixels[dstIdx] = Math.min(Math.max(rSum / weightSum, 0), 255);
+        dstPixels[dstIdx + 1] = Math.min(Math.max(gSum / weightSum, 0), 255);
+        dstPixels[dstIdx + 2] = Math.min(Math.max(bSum / weightSum, 0), 255);
+        dstPixels[dstIdx + 3] = Math.min(Math.max(aSum / weightSum, 0), 255);
+      }
+    }
+  } else if (algorithm === 'LANCZOS3') {
+    const sinc = (x) => {
+      if (x === 0) return 1.0;
+      const piX = Math.PI * x;
+      return Math.sin(piX) / piX;
+    };
+    const lanczosWeight = (x) => {
+      const absX = Math.abs(x);
+      if (absX >= 3.0) return 0.0;
+      return sinc(absX) * sinc(absX / 3.0);
+    };
+
+    for (let dy = 0; dy < dstH; dy++) {
+      const srcY = (dy + 0.5) * (srcH / dstH) - 0.5;
+      const yInt = Math.floor(srcY);
+      const yDiff = srcY - yInt;
+
+      for (let dx = 0; dx < dstW; dx++) {
+        const srcX = (dx + 0.5) * (srcW / dstW) - 0.5;
+        const xInt = Math.floor(srcX);
+        const xDiff = srcX - xInt;
+
+        let rSum = 0, gSum = 0, bSum = 0, aSum = 0, weightSum = 0;
+
+        for (let m = -2; m <= 3; m++) {
+          const sy = Math.min(Math.max(yInt + m, 0), srcH - 1);
+          const wy = lanczosWeight(m - yDiff);
+
+          for (let n = -2; n <= 3; n++) {
+            const sx = Math.min(Math.max(xInt + n, 0), srcW - 1);
+            const wx = lanczosWeight(n - xDiff);
+            const weight = wx * wy;
+
+            if (weight !== 0) {
+              const srcIdx = (sy * srcW + sx) * 4;
+              rSum += srcPixels[srcIdx] * weight;
+              gSum += srcPixels[srcIdx + 1] * weight;
+              bSum += srcPixels[srcIdx + 2] * weight;
+              aSum += srcPixels[srcIdx + 3] * weight;
+              weightSum += weight;
+            }
+          }
+        }
+
+        const dstIdx = (dy * dstW + dx) * 4;
+        dstPixels[dstIdx] = Math.min(Math.max(rSum / weightSum, 0), 255);
+        dstPixels[dstIdx + 1] = Math.min(Math.max(gSum / weightSum, 0), 255);
+        dstPixels[dstIdx + 2] = Math.min(Math.max(bSum / weightSum, 0), 255);
+        dstPixels[dstIdx + 3] = Math.min(Math.max(aSum / weightSum, 0), 255);
+      }
+    }
+  }
+
+  dstCtx.putImageData(dstData, 0, 0);
+  return dstCanvas;
+}
+
 
