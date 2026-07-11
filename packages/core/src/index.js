@@ -53,10 +53,25 @@ export class ColorConverter {
 export class WebGLEngine {
   constructor(canvas) {
     this.canvas = canvas;
+    this.isFallback2d = false;
+
+    // Try WebGL 2 first
     this.gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
     if (!this.gl) {
-      throw new Error('WebGL 2 is not supported on this device.');
+      // Try WebGL 1
+      this.gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || 
+                canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
     }
+
+    if (!this.gl) {
+      console.warn('WebGL is not supported. Falling back to Canvas 2D rendering context.');
+      this.ctx2d = canvas.getContext('2d');
+      this.isFallback2d = true;
+      if (!this.ctx2d) {
+        throw new Error('Canvas 2D and WebGL contexts are both unsupported on this device.');
+      }
+    }
+
     this.program = null;
     this.texture = null;
     this.image = null;
@@ -66,7 +81,10 @@ export class WebGLEngine {
       saturation: 1.0, // 0.0 to 3.0
       exposure: 0.0    // -2.0 to 2.0
     };
-    this.initShaders();
+    
+    if (!this.isFallback2d) {
+      this.initShaders();
+    }
   }
 
   initShaders() {
@@ -173,8 +191,12 @@ export class WebGLEngine {
 
   setImage(image) {
     this.image = image;
-    const gl = this.gl;
+    if (this.isFallback2d) {
+      this.render();
+      return;
+    }
 
+    const gl = this.gl;
     if (this.texture) {
       gl.deleteTexture(this.texture);
     }
@@ -198,6 +220,21 @@ export class WebGLEngine {
 
   render() {
     if (!this.image) return;
+
+    if (this.isFallback2d) {
+      const ctx = this.ctx2d;
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      
+      const bPct = Math.max(0, Math.round((1.0 + this.adjustments.brightness) * 100));
+      const cPct = Math.max(0, Math.round(this.adjustments.contrast * 100));
+      const sPct = Math.max(0, Math.round(this.adjustments.saturation * 100));
+      const expPct = Math.max(0, Math.round(Math.pow(2.0, this.adjustments.exposure) * 100));
+
+      ctx.filter = `brightness(${bPct * (expPct / 100)}%) contrast(${cPct}%) saturate(${sPct}%)`;
+      ctx.drawImage(this.image, 0, 0, this.canvas.width, this.canvas.height);
+      ctx.filter = 'none'; // reset filter
+      return;
+    }
 
     const gl = this.gl;
     

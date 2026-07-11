@@ -230,9 +230,9 @@ function App() {
 
   const fitImageToViewport = (imgWidth, imgHeight) => {
     if (!containerRef.current) return;
-    const cw = containerRef.current.clientWidth - 80;
-    const ch = containerRef.current.clientHeight - 80;
-    const scale = Math.min(cw / imgWidth, ch / imgHeight, 1.0);
+    const cw = Math.max(100, containerRef.current.clientWidth - 80);
+    const ch = Math.max(100, containerRef.current.clientHeight - 80);
+    const scale = Math.max(0.05, Math.min(cw / imgWidth, ch / imgHeight, 1.0));
     setZoom(scale);
     setPan({ x: 0, y: 0 });
   };
