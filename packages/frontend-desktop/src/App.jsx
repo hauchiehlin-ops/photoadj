@@ -88,6 +88,7 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [helpTab, setHelpTab] = useState('manual'); // 'manual' | 'privacy'
   const [pastedLayer, setPastedLayer] = useState(null);
   const [isDraggingPastedLayer, setIsDraggingPastedLayer] = useState(false);
   const [pasteDragStart, setPasteDragStart] = useState({ x: 0, y: 0 });
@@ -1933,8 +1934,8 @@ function App() {
           animation: 'fadeIn 0.2s ease-out'
         }}>
           <div className="glass-panel glow-cyan" style={{
-            width: '640px',
-            maxWidth: '90%',
+            width: '680px',
+            maxWidth: '92%',
             maxHeight: '85vh',
             overflowY: 'auto',
             padding: '24px',
@@ -1949,7 +1950,7 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-cyber)', paddingBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <HelpCircle className="title-cyan" size={20} />
-                <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>DevPixel 影像處理操作指引</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>DevPixel 影像與印前調校助手說明</h2>
               </div>
               <button 
                 className="cyber-btn" 
@@ -1960,69 +1961,168 @@ function App() {
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-              <div>
-                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Maximize2 size={14} className="title-cyan" /> 1. 平移與縮放 (Pan & Zoom)
-                </h3>
-                <p style={{ margin: 0, paddingLeft: '20px' }}>
-                  選取左側 <b>平移工具 (H)</b>，在畫布按住滑鼠左鍵即可移動；亦可在任何工具狀態下 <b>長按鍵盤「空白鍵 (Spacebar)」</b> 暫時抓取移動。使用頂部拉桿、縮放按鈕或滑鼠滾輪可進行無級縮放。
-                </p>
-              </div>
+            {/* Modal Tab Navigation */}
+            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
+              <button 
+                onClick={() => setHelpTab('manual')}
+                className="cyber-btn"
+                style={{ 
+                  flex: 1, 
+                  background: helpTab === 'manual' ? 'var(--accent-cyan)' : 'transparent',
+                  color: helpTab === 'manual' ? '#000' : 'var(--text-secondary)',
+                  justifyContent: 'center',
+                  fontWeight: 'bold',
+                  height: '32px'
+                }}
+              >
+                📖 功能與操作手冊
+              </button>
+              <button 
+                onClick={() => setHelpTab('privacy')}
+                className="cyber-btn"
+                style={{ 
+                  flex: 1, 
+                  background: helpTab === 'privacy' ? 'var(--accent-cyan)' : 'transparent',
+                  color: helpTab === 'privacy' ? '#000' : 'var(--text-secondary)',
+                  justifyContent: 'center',
+                  fontWeight: 'bold',
+                  height: '32px'
+                }}
+              >
+                🔒 隱私權與資料保護政策
+              </button>
+            </div>
 
-              <div>
-                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Crop size={14} className="title-cyan" /> 2. 印刷裁切與自訂尺寸
-                </h3>
-                <p style={{ margin: 0, paddingLeft: '20px' }}>
-                  選取左側 <b>裁切工具 (C)</b> 後，可於右側「一鍵印刷」頁籤點選 A0~A5 等印刷規格，或點選「自訂規格」手動輸入寬高 (mm) 與自訂 DPI，系統會自動在畫布上疊加 <b>3mm 出血安全區線框</b>。
-                </p>
-              </div>
+            {helpTab === 'manual' ? (
+              /* TAB 1: User Manual */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                <div>
+                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Maximize2 size={14} className="title-cyan" /> 1. 平移與縮放 (Pan & Zoom)
+                  </h3>
+                  <p style={{ margin: 0, paddingLeft: '20px' }}>
+                    選取左側 <b>平移工具 (H)</b>，在畫布按住滑鼠左鍵即可平移；亦可在任何工具狀態下 <b>長按鍵盤「空白鍵 (Spacebar)」</b> 暫時抓取移動。使用頂部拉桿、縮放按鈕或滾輪可進行縮放。畫布設有安全縮放限制，防視窗逸失。
+                  </p>
+                </div>
 
-              <div>
-                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Sliders size={14} className="title-cyan" /> 3. 色彩影像調整 (WebGL 加速)
-                </h3>
-                <p style={{ margin: 0, paddingLeft: '20px' }}>
-                  切換到右側「影像調整」分頁，拖動亮度、曝光度等滑桿可得到實時著色器預覽。調整滿意後，<b>必須點擊「套用色調變更 (Bake)」按鈕</b> 才能將數值真正寫入影像像素並存入歷史紀錄。
-                </p>
-              </div>
+                <div>
+                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sliders size={14} className="title-cyan" /> 2. 色彩影像調整與烘焙 (Baking)
+                  </h3>
+                  <p style={{ margin: 0, paddingLeft: '20px' }}>
+                    切換到右側「影像調整」分頁，可拉動亮度、曝光度等滑桿透過 WebGL 著色器實時預覽。調整滿意後，<b>必須點擊下方「套用色調變更 (Bake)」按鈕</b> 才能將變更寫入影像像素並寫入歷史紀錄。
+                  </p>
+                </div>
 
-              <div>
-                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Scissors size={14} className="title-cyan" /> 4. 區域編輯 (Marquee Edit)
-                </h3>
-                <p style={{ margin: 0, paddingLeft: '20px' }}>
-                  選取左側 <b>區域框選工具 (M)</b>，在畫布上拖曳出藍色虛線框。接著在右側「影像編輯」頁籤中，點選 <b>複製選取區</b> 存至剪貼簿、<b>貼上選取區</b> 做為新圖層，或點選 <b>刪除選取區</b> 清除像素。
-                </p>
-              </div>
+                <div>
+                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Scissors size={14} className="title-cyan" /> 3. 區域編輯、無痕消除與貼上層
+                  </h3>
+                  <p style={{ margin: 0, paddingLeft: '20px' }}>
+                    選取左側 <b>區域框選工具 (M)</b>，在畫布上拖曳出選取區：
+                    <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px' }}>
+                      <li><b>複製與貼上</b>：點選複製將像素存入剪貼簿，貼上後會產生一個懸浮貼上層。可用滑鼠隨意拖曳定位，雙擊或右側點選烘焙寫入畫布。欲移除貼上層，可直接點擊「取消」或按鍵盤 <b>Delete / Backspace</b> 鍵。</li>
+                      <li><b>無痕消除</b>：點選「刪除選取區」或按鍵盤 <b>Delete / Backspace</b> 鍵，系統將自動進行周邊亮度像素的無痕融合補平。</li>
+                      <li><b>隱私模糊</b>：點選「模糊框選區域」會執行高品質的 25x25 強效模糊，使文字徹底不可讀。</li>
+                    </ul>
+                  </p>
+                </div>
 
-              <div>
-                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Sparkles size={14} className="title-cyan" /> 5. AI 去背與隱私遮罩
-                </h3>
-                <p style={{ margin: 0, paddingLeft: '20px' }}>
-                  在右側「AI 助理」頁籤中：點選 <b>AI 智慧去背</b> 可以一鍵清除相片背景；點選 <b>ID 敏感字元打碼</b> 可搭配框選工具對敏感姓名或證號進行高斯模糊遮蔽。
-                </p>
-              </div>
+                <div>
+                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Crop size={14} className="title-cyan" /> 4. 印刷規格、出血線與調校助理 (Pre-press Optimizer)
+                  </h3>
+                  <p style={{ margin: 0, paddingLeft: '20px' }}>
+                    選取左側 <b>裁切工具 (C)</b> 後，可在右側「一鍵印刷」頁籤進行進階設定：
+                    <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px' }}>
+                      <li><b>出血線</b>：系統支援直橫向版面方向自動偵測與手動切換，並自動渲染 3mm 虛線出血邊界框。</li>
+                      <li><b>建議解析度對照</b>：系統會依據選擇規格（如 A0~A5）動態給出建議解析度範圍。點擊 <b>「套用建議上限值」</b> 按鈕，能一鍵將 DPI 設為該規格的上限值，避免檔案容量臃腫。</li>
+                      <li><b>安全 DPI 鎖定</b>：勾選「最低安全解析度」後將鎖定 DPI 下限為 100 DPI，防止解析度過低導致印刷像素化。</li>
+                      <li><b>超採樣放大演算法</b>：提供 Bilinear、Bicubic、Lanczos-3。當原圖尺寸小於目標所需像素時，系統將自動調用 <b>Lanczos-3 印刷級插值重採樣</b> 對影像進行邊緣銳化重建，確保高 DPI 滿版列印品質，無需調降 DPI！</li>
+                    </ul>
+                  </p>
+                </div>
 
-              <div style={{ borderTop: '1px solid var(--border-cyber)', paddingTop: '12px', marginTop: '4px' }}>
-                <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px' }}>
-                  ⌨️ 鍵盤快捷鍵對照表 (Shortcuts)
-                </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
-                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Space (長按)</kbd> 抓手平移</div>
-                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Cmd / Ctrl + Z</kbd> 復原操作 (Undo)</div>
-                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Cmd / Ctrl + Shift + Z</kbd> 重做操作 (Redo)</div>
-                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>H</kbd> 切換到平移工具</div>
-                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>C</kbd> 切換到裁切工具</div>
-                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>M</kbd> 切換到框選工具</div>
-                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>A</kbd> 切換到向量標記</div>
-                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>S</kbd> 切換到安全簽名</div>
-                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>F1</kbd> 開啟此操作指引</div>
+                <div>
+                  <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles size={14} className="title-cyan" /> 5. 本地 AI 去背與隱私防護檢測
+                  </h3>
+                  <p style={{ margin: 0, paddingLeft: '20px' }}>
+                    在右側「AI 助理」頁籤中：點選 <b>AI 智慧去背</b> 可藉由本地端去背引擎移除相片或文件背景，去背後的透明底色可透過畫布下的 16px 棋盤格背景清晰辨識；點選 <b>敏感資訊自動掃描</b> 可一鍵搜尋畫面中是否包含個資並引導遮蔽。
+                  </p>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-cyber)', paddingTop: '12px', marginTop: '4px' }}>
+                  <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px' }}>
+                    ⌨️ 鍵盤快捷鍵對照表 (Shortcuts)
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Space (長按)</kbd> 抓手平移</div>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Cmd / Ctrl + Z</kbd> 復原操作 (Undo)</div>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Cmd / Ctrl + Shift + Z</kbd> 重做操作 (Redo)</div>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Delete / Backspace</kbd> 刪除選區 / 撤銷貼上層</div>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>H</kbd> 切換到平移工具</div>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>C</kbd> 切換到裁切工具</div>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>M</kbd> 切換到框選工具</div>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>A</kbd> 切換到向量標記</div>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>S</kbd> 切換到安全簽名</div>
+                    <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>F1</kbd> 開啟說明視窗</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* TAB 2: Privacy Policy */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                <div style={{ padding: '10px 14px', background: 'rgba(0, 229, 255, 0.05)', border: '1px solid var(--border-cyber)', borderRadius: '6px' }}>
+                  <h3 style={{ fontSize: '14px', color: 'var(--accent-cyan)', fontWeight: 'bold', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ShieldAlert size={16} /> 100% 本地端離線隱私安全宣告
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '12px' }}>
+                    DevPixel 專案秉持「隱私安全至上 (Privacy First)」原則。所有核心運算均限制在您本地的實體主機上運行，實現真正的實體隔離與零網路隱私洩漏風險。
+                  </p>
+                </div>
+
+                <div>
+                  <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '4px' }}>
+                    一、100% 本地端運算架構
+                  </h4>
+                  <p style={{ margin: 0, paddingLeft: '12px' }}>
+                    本程式載入的任何影像、照片、手寫文檔及證件，其 WebGL 著色器濾鏡處理、Canvas 向量編輯、像素無痕填充演算法、以及 Lanczos-3 高品質超採樣重採樣放大，**全數在您本機瀏覽器 / Tauri 沙盒內部以 CPU 或 GPU 獨立完成，絕對不會上傳至任何雲端伺服器**。
+                  </p>
+                </div>
+
+                <div>
+                  <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '4px' }}>
+                    二、AI 與敏感字元掃描之離線推理
+                  </h4>
+                  <p style={{ margin: 0, paddingLeft: '12px' }}>
+                    內建的 <b>AI 智慧去背</b>（移除亮/暗背景）以及 <b>個資敏感字元 OCR 自動偵測掃描</b> 功能，皆是透過本地編譯之智慧模組直接在您的本機硬體上進行單機計算推理。本程式不含任何外部遙測 (Telemetry) API，個資掃描比對結果僅在前端介面短暫引導標記，不會上傳給任何第三方或進行存檔。
+                  </p>
+                </div>
+
+                <div>
+                  <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '4px' }}>
+                    三、印前導出與色彩空間轉換安全
+                  </h4>
+                  <p style={{ margin: 0, paddingLeft: '12px' }}>
+                    程式所附帶的 `@devpixel/cmyk-wasm` 模組是純 Rust 編譯的本地 WebAssembly 模組，其 sRGB 轉 CMYK（FOGRA39 描述檔）、TIFF 及符合 PDF/X-1a 標準之印前 PDF 文件編碼包裝，皆為本機同步進行，直接輸出檔案寫入您硬碟，沒有任何中繼伺服器介入，保證您的商業設計與發行文件 100% 安全保密。
+                  </p>
+                </div>
+
+                <div>
+                  <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '4px' }}>
+                    四、個資隱私模糊處理 (Redaction)
+                  </h4>
+                  <p style={{ margin: 0, paddingLeft: '12px' }}>
+                    當您使用本程式的「模糊框選區域」功能時，系統將調用 25x25 強效方框模糊 (Box Blur) 內核進行像素混亂，此模糊在數學上具有不可還原性，能確保障蔽後的個資與文字在任何反向解碼下皆維持 100% 無法讀取狀態。
+                  </p>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-cyber)', paddingTop: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  中華民國 115 年 (2026年) 07 月 11 日修訂並生效。若您在使用本程式時處於完全斷網狀態，所有功能均可無縫離線運作，敬請安心使用。
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
