@@ -46,6 +46,14 @@ function App() {
   const [image, setImage] = useState(null);
   const [imageInfo, setImageInfo] = useState({ name: 'sample.png', width: 1200, height: 800 });
   const [dpi, setDpi] = useState(300);
+  const [dpiPreset, setDpiPreset] = useState('300'); // '72', '150', '300', 'CUSTOM'
+
+  const handleDpiPresetChange = (val) => {
+    setDpiPreset(val);
+    if (val !== 'CUSTOM') {
+      setDpi(Number(val));
+    }
+  };
   const [selectedPreset, setSelectedPreset] = useState('A4');
   const [showBleed, setShowBleed] = useState(true);
   const [showGamutWarning, setShowGamutWarning] = useState(false);
@@ -686,18 +694,34 @@ function App() {
 
         {/* Collapsed Export Dropdown Panel */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: '6px' }}>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>印刷輸出解析度</span>
-            <select 
-              value={dpi} 
-              onChange={(e) => setDpi(Number(e.target.value))} 
-              className="mono-text"
-              style={{ background: 'var(--bg-cyber-dark)', color: 'var(--accent-cyan)', border: '1px solid var(--border-cyber)', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', outline: 'none' }}
-            >
-              <option value={72}>72 DPI (網頁)</option>
-              <option value={150}>150 DPI (普通影印)</option>
-              <option value={300}>300 DPI (專業印刷)</option>
-            </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>印刷輸出解析度</span>
+              <select 
+                value={dpiPreset} 
+                onChange={(e) => handleDpiPresetChange(e.target.value)} 
+                className="mono-text"
+                style={{ background: 'var(--bg-cyber-dark)', color: 'var(--accent-cyan)', border: '1px solid var(--border-cyber)', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', outline: 'none' }}
+              >
+                <option value="72">72 DPI (網頁)</option>
+                <option value="150">150 DPI (普通影印)</option>
+                <option value="300">300 DPI (專業印刷)</option>
+                <option value="CUSTOM">自訂 DPI</option>
+              </select>
+            </div>
+            {dpiPreset === 'CUSTOM' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '65px' }}>
+                <span style={{ fontSize: '10px', color: 'var(--accent-cyan)' }}>數值</span>
+                <input 
+                  type="number" 
+                  min="10" 
+                  max="2400" 
+                  value={dpi} 
+                  onChange={(e) => setDpi(Math.max(10, Math.min(2400, Number(e.target.value))))}
+                  style={{ width: '100%', background: 'var(--bg-cyber-dark)', border: '1px solid var(--border-cyber)', borderRadius: '4px', padding: '2px 4px', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', height: '20px' }}
+                />
+              </div>
+            )}
           </div>
 
           <div style={{ position: 'relative' }}>
@@ -1195,6 +1219,36 @@ function App() {
                 <span>所需寬高:</span>
                 <span className="mono-text title-cyan">{printPixels.widthPx} x {printPixels.heightPx} px</span>
               </div>
+
+              {image && (() => {
+                const isSufficient = imageInfo.width >= printPixels.widthPx && imageInfo.height >= printPixels.heightPx;
+                return (
+                  <div style={{ marginTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '8px' }}>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '6px', fontStyle: 'italic' }}>
+                      計算公式: (尺寸 / 25.4) * DPI = 所需像素
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      <span>目前影像尺寸:</span>
+                      <span className="mono-text">{imageInfo.width} x {imageInfo.height} px</span>
+                    </div>
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '6px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      lineHeight: '1.4',
+                      background: isSufficient ? 'rgba(0, 230, 118, 0.08)' : 'rgba(255, 145, 0, 0.08)',
+                      border: `1px solid ${isSufficient ? 'var(--accent-green)' : 'rgba(255, 145, 0, 0.3)'}`,
+                      color: isSufficient ? 'var(--accent-green)' : '#ff9100'
+                    }}>
+                      {isSufficient 
+                        ? '✅ 目前影像解析度充足！適合高品質印刷輸出（匯出時將自動重採樣優化縮圖）。' 
+                        : '⚠️ 原始影像解析度不足！印刷輸出會被拉伸放大。建議更換更高解析度圖檔或降低輸出 DPI。'
+                      }
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
