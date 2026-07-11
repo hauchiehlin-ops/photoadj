@@ -477,13 +477,66 @@ function App() {
     tempCanvas.height = imageInfo.height;
     const tempCtx = tempCanvas.getContext('2d');
     tempCtx.drawImage(image, 0, 0);
-    tempCtx.clearRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+
+    // Sample surrounding border pixels (3 pixels outside the selection rectangle)
+    const x = Math.round(selectionRect.x);
+    const y = Math.round(selectionRect.y);
+    const w = Math.round(selectionRect.w);
+    const h = Math.round(selectionRect.h);
+    
+    const borderOffset = 3;
+    const points = [];
+    
+    // Top edge points
+    for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 10))) {
+      points.push({ x: x + i, y: y - borderOffset });
+    }
+    // Bottom edge points
+    for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 10))) {
+      points.push({ x: x + i, y: y + h + borderOffset });
+    }
+    // Left edge points
+    for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 10))) {
+      points.push({ x: x - borderOffset, y: y + j });
+    }
+    // Right edge points
+    for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 10))) {
+      points.push({ x: x + w + borderOffset, y: y + j });
+    }
+    
+    let sumR = 0, sumG = 0, sumB = 0, sumA = 0, count = 0;
+    points.forEach(p => {
+      const px = Math.max(0, Math.min(imageInfo.width - 1, p.x));
+      const py = Math.max(0, Math.min(imageInfo.height - 1, p.y));
+      const data = tempCtx.getImageData(px, py, 1, 1).data;
+      if (data[3] > 0) {
+        sumR += data[0];
+        sumG += data[1];
+        sumB += data[2];
+        sumA += data[3];
+        count++;
+      }
+    });
+
+    let avgColor = { r: 255, g: 255, b: 255, a: 255 };
+    if (count > 0) {
+      avgColor = {
+        r: Math.round(sumR / count),
+        g: Math.round(sumG / count),
+        b: Math.round(sumB / count),
+        a: Math.round(sumA / count)
+      };
+    }
+
+    // Fill selection area with average surrounding color instead of leaving a transparent/black gap
+    tempCtx.fillStyle = `rgba(${avgColor.r}, ${avgColor.g}, ${avgColor.b}, ${avgColor.a / 255})`;
+    tempCtx.fillRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
 
     const clearedImg = new Image();
     clearedImg.onload = () => {
       setImage(clearedImg);
       setSelectionRect(null);
-      setAiStatus('已刪除選取區域！');
+      setAiStatus('已刪除選取區域並使用周邊色彩補平！');
       pushHistory(clearedImg);
     };
     clearedImg.src = tempCanvas.toDataURL();
