@@ -24,7 +24,8 @@ import {
   Scissors,
   Copy,
   Trash2,
-  Clipboard
+  Clipboard,
+  HelpCircle
 } from 'lucide-react';
 import { 
   WebGLEngine, 
@@ -59,6 +60,7 @@ function App() {
   const [showGamutWarning, setShowGamutWarning] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Custom print preset dimension values
   const [customWidth, setCustomWidth] = useState(210);
@@ -132,12 +134,46 @@ function App() {
       setHistoryIndex(0);
     };
 
-    // Spacebar listener for temporary panning
+    // Keyboard shortcuts & Spacebar panning listener
     const handleKeyDown = (e) => {
+      if (document.activeElement.tagName === 'INPUT' || 
+          document.activeElement.tagName === 'SELECT' || 
+          document.activeElement.tagName === 'TEXTAREA') {
+        return;
+      }
       if (e.code === 'Space') {
-        if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
-          e.preventDefault();
-          setSpacePressed(true);
+        e.preventDefault();
+        setSpacePressed(true);
+      }
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setShowHelpModal(prev => !prev);
+      }
+      if (e.key === 'Escape') {
+        setShowHelpModal(false);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      }
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'h') {
+          setActiveTool('pan');
+        } else if (key === 'c') {
+          setActiveTool('crop');
+          setActiveTab('print');
+        } else if (key === 'a') {
+          setActiveTool('markup');
+        } else if (key === 's') {
+          setActiveTool('signature');
+        } else if (key === 'm') {
+          setActiveTool('select');
+          setActiveTab('edit');
         }
       }
     };
@@ -154,7 +190,7 @@ function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [historyIndex, history, activeTool, activeTab]);
 
   // Update canvas sizing and engine image whenever image or zoom/pan changes
   useEffect(() => {
@@ -869,6 +905,17 @@ function App() {
         >
           <Scissors size={20} />
         </div>
+
+        <div style={{ width: '24px', height: '1px', background: 'var(--border-cyber)', margin: '8px 0' }} />
+
+        <div 
+          className="tool-icon-btn hover-active"
+          onClick={() => setShowHelpModal(true)}
+          title="操作指引與快捷鍵說明 (F1)"
+          style={{ color: 'var(--accent-cyan)' }}
+        >
+          <HelpCircle size={20} />
+        </div>
       </aside>
 
       {/* 3. Canvas Viewport (Center) */}
@@ -1412,6 +1459,115 @@ function App() {
         </div>
       </footer>
 
+      {showHelpModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(5, 7, 12, 0.85)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div className="glass-panel glow-cyan" style={{
+            width: '640px',
+            maxWidth: '90%',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            padding: '24px',
+            position: 'relative',
+            background: 'var(--bg-cyber-dark)',
+            border: '1px solid var(--border-cyber)',
+            borderRadius: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-cyber)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <HelpCircle className="title-cyan" size={20} />
+                <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>DevPixel 影像處理操作指引</h2>
+              </div>
+              <button 
+                className="cyber-btn" 
+                onClick={() => setShowHelpModal(false)}
+                style={{ padding: '4px 8px', fontSize: '12px' }}
+              >
+                關閉 (Esc)
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+              <div>
+                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Maximize2 size={14} className="title-cyan" /> 1. 平移與縮放 (Pan & Zoom)
+                </h3>
+                <p style={{ margin: 0, paddingLeft: '20px' }}>
+                  選取左側 <b>平移工具 (H)</b>，在畫布按住滑鼠左鍵即可移動；亦可在任何工具狀態下 <b>長按鍵盤「空白鍵 (Spacebar)」</b> 暫時抓取移動。使用頂部拉桿、縮放按鈕或滑鼠滾輪可進行無級縮放。
+                </p>
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Crop size={14} className="title-cyan" /> 2. 印刷裁切與自訂尺寸
+                </h3>
+                <p style={{ margin: 0, paddingLeft: '20px' }}>
+                  選取左側 <b>裁切工具 (C)</b> 後，可於右側「一鍵印刷」頁籤點選 A0~A5 等印刷規格，或點選「自訂規格」手動輸入寬高 (mm) 與自訂 DPI，系統會自動在畫布上疊加 <b>3mm 出血安全區線框</b>。
+                </p>
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sliders size={14} className="title-cyan" /> 3. 色彩影像調整 (WebGL 加速)
+                </h3>
+                <p style={{ margin: 0, paddingLeft: '20px' }}>
+                  切換到右側「影像調整」分頁，拖動亮度、曝光度等滑桿可得到實時著色器預覽。調整滿意後，<b>必須點擊「套用色調變更 (Bake)」按鈕</b> 才能將數值真正寫入影像像素並存入歷史紀錄。
+                </p>
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Scissors size={14} className="title-cyan" /> 4. 區域編輯 (Marquee Edit)
+                </h3>
+                <p style={{ margin: 0, paddingLeft: '20px' }}>
+                  選取左側 <b>區域框選工具 (M)</b>，在畫布上拖曳出藍色虛線框。接著在右側「影像編輯」頁籤中，點選 <b>複製選取區</b> 存至剪貼簿、<b>貼上選取區</b> 做為新圖層，或點選 <b>刪除選取區</b> 清除像素。
+                </p>
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles size={14} className="title-cyan" /> 5. AI 去背與隱私遮罩
+                </h3>
+                <p style={{ margin: 0, paddingLeft: '20px' }}>
+                  在右側「AI 助理」頁籤中：點選 <b>AI 智慧去背</b> 可以一鍵清除相片背景；點選 <b>ID 敏感字元打碼</b> 可搭配框選工具對敏感姓名或證號進行高斯模糊遮蔽。
+                </p>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border-cyber)', paddingTop: '12px', marginTop: '4px' }}>
+                <h4 style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 'bold', marginBottom: '6px' }}>
+                  ⌨️ 鍵盤快捷鍵對照表 (Shortcuts)
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Space (長按)</kbd> 抓手平移</div>
+                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Cmd / Ctrl + Z</kbd> 復原操作 (Undo)</div>
+                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>Cmd / Ctrl + Shift + Z</kbd> 重做操作 (Redo)</div>
+                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>H</kbd> 切換到平移工具</div>
+                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>C</kbd> 切換到裁切工具</div>
+                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>M</kbd> 切換到框選工具</div>
+                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>A</kbd> 切換到向量標記</div>
+                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>S</kbd> 切換到安全簽名</div>
+                  <div><kbd style={{ background: '#1c2030', padding: '2px 6px', borderRadius: '3px', border: '1px solid #334' }}>F1</kbd> 開啟此操作指引</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
