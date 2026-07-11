@@ -150,6 +150,10 @@ function App() {
       if (e.key === 'Escape') {
         setShowHelpModal(false);
       }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDelete();
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -502,6 +506,11 @@ function App() {
 
   // Image Editing - Delete selected region
   const handleDelete = () => {
+    if (pastedLayer) {
+      setPastedLayer(null);
+      setAiStatus('已取消並移除貼上圖層！');
+      return;
+    }
     if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !imageSrc) {
       alert('請先在畫布上框選一個區域再進行刪除。');
       return;
@@ -515,53 +524,72 @@ function App() {
     img.onload = () => {
       tempCtx.drawImage(img, 0, 0);
 
-      // Sample surrounding border pixels (3 pixels outside the selection rectangle)
+      // Sample surrounding border pixels (6 pixels outside the selection rectangle to avoid text glow)
       const x = Math.round(selectionRect.x);
       const y = Math.round(selectionRect.y);
       const w = Math.round(selectionRect.w);
       const h = Math.round(selectionRect.h);
       
-      const borderOffset = 3;
+      const borderOffset = 6;
       const points = [];
       
       // Top edge points
-      for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 10))) {
+      for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 15))) {
         points.push({ x: x + i, y: y - borderOffset });
       }
       // Bottom edge points
-      for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 10))) {
+      for (let i = 0; i <= w; i += Math.max(1, Math.floor(w / 15))) {
         points.push({ x: x + i, y: y + h + borderOffset });
       }
       // Left edge points
-      for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 10))) {
+      for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 15))) {
         points.push({ x: x - borderOffset, y: y + j });
       }
       // Right edge points
-      for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 10))) {
+      for (let j = 0; j <= h; j += Math.max(1, Math.floor(h / 15))) {
         points.push({ x: x + w + borderOffset, y: y + j });
       }
       
-      let sumR = 0, sumG = 0, sumB = 0, sumA = 0, count = 0;
+      const colors = [];
       points.forEach(p => {
         const px = Math.max(0, Math.min(imageInfo.width - 1, p.x));
         const py = Math.max(0, Math.min(imageInfo.height - 1, p.y));
         const data = tempCtx.getImageData(px, py, 1, 1).data;
         if (data[3] > 0) {
-          sumR += data[0];
-          sumG += data[1];
-          sumB += data[2];
-          sumA += data[3];
-          count++;
+          const lum = 0.299 * data[0] + 0.587 * data[1] + 0.114 * data[2];
+          colors.push({ r: data[0], g: data[1], b: data[2], a: data[3], lum });
         }
       });
 
+      // Sample corner pixel to check if page is light or dark background
+      const cornerPixel = tempCtx.getImageData(0, 0, 1, 1).data;
+      const cornerLum = 0.299 * cornerPixel[0] + 0.587 * cornerPixel[1] + 0.114 * cornerPixel[2];
+      const isLightBg = cornerLum > 120;
+
       let avgColor = { r: 255, g: 255, b: 255, a: 255 };
-      if (count > 0) {
+      if (colors.length > 0) {
+        if (isLightBg) {
+          // Light paper background: sort luminance descending (brightest first) and average the brightest 50% to ignore black text strokes
+          colors.sort((a, b) => b.lum - a.lum);
+        } else {
+          // Dark background: sort luminance ascending (darkest first) and average the darkest 50% to ignore highlights
+          colors.sort((a, b) => a.lum - b.lum);
+        }
+
+        const subset = colors.slice(0, Math.max(1, Math.floor(colors.length * 0.5)));
+        let sumR = 0, sumG = 0, sumB = 0, sumA = 0;
+        subset.forEach(c => {
+          sumR += c.r;
+          sumG += c.g;
+          sumB += c.b;
+          sumA += c.a;
+        });
+
         avgColor = {
-          r: Math.round(sumR / count),
-          g: Math.round(sumG / count),
-          b: Math.round(sumB / count),
-          a: Math.round(sumA / count)
+          r: Math.round(sumR / subset.length),
+          g: Math.round(sumG / subset.length),
+          b: Math.round(sumB / subset.length),
+          a: Math.round(sumA / subset.length)
         };
       }
 
@@ -1580,9 +1608,9 @@ function App() {
                 className="cyber-btn"
                 onClick={handleDelete}
                 style={{ justifyContent: 'center', padding: '10px', color: '#ff4d4d', borderColor: 'rgba(255, 77, 77, 0.2)' }}
-                disabled={!selectionRect}
+                disabled={!selectionRect && !pastedLayer}
               >
-                <Trash2 size={16} /> 刪除框選像素 (Delete)
+                <Trash2 size={16} /> 刪除框選像素 / 取消貼上 (Delete)
               </button>
 
               <button 

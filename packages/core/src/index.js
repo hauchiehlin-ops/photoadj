@@ -422,9 +422,9 @@ export function performLocalRedaction(canvas, rx, ry, rw, rh) {
   const w = rw;
   const h = rh;
   
-  // Simple Box Blur (5x5 kernel)
+  // Strong Box Blur (25x25 kernel for proper privacy protection blur)
   const tempData = new Uint8Array(data);
-  const kernelSize = 5;
+  const kernelSize = 25;
   const half = Math.floor(kernelSize / 2);
 
   for (let y = 0; y < h; y++) {
