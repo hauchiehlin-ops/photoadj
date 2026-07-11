@@ -150,11 +150,22 @@ function App() {
 
   // Update canvas sizing and engine image whenever image or zoom/pan changes
   useEffect(() => {
-    if (image && engineRef.current && canvasRef.current) {
-      canvasRef.current.width = imageInfo.width;
-      canvasRef.current.height = imageInfo.height;
-      engineRef.current.setImage(image);
-      engineRef.current.updateAdjustments({ brightness, contrast, saturation, exposure });
+    if (image && canvasRef.current) {
+      // Re-initialize WebGLEngine if canvas has remounted (context replaced)
+      if (!engineRef.current || engineRef.current.canvas !== canvasRef.current) {
+        try {
+          engineRef.current = new WebGLEngine(canvasRef.current);
+        } catch (err) {
+          console.error("WebGL init error on remount: ", err);
+        }
+      }
+
+      if (engineRef.current) {
+        canvasRef.current.width = imageInfo.width;
+        canvasRef.current.height = imageInfo.height;
+        engineRef.current.setImage(image);
+        engineRef.current.updateAdjustments({ brightness, contrast, saturation, exposure });
+      }
     }
   }, [image, imageInfo, brightness, contrast, saturation, exposure]);
 
