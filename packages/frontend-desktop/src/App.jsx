@@ -50,6 +50,7 @@ function App() {
   const [showBleed, setShowBleed] = useState(true);
   const [showGamutWarning, setShowGamutWarning] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
 
   // Custom print preset dimension values
   const [customWidth, setCustomWidth] = useState(210);
@@ -194,18 +195,32 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  const handleDragOver = (e) => {
+  const handleDragEnter = (e) => {
     e.preventDefault();
+    setDragCounter(prev => prev + 1);
     setIsDragging(true);
   };
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragCounter(prev => {
+      const next = prev - 1;
+      if (next <= 0) {
+        setIsDragging(false);
+        return 0;
+      }
+      return next;
+    });
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
+    setDragCounter(0);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleImageUpload(e.dataTransfer.files[0]);
     }
@@ -223,6 +238,7 @@ function App() {
 
   // Mouse pan & marquee selection handling
   const handleMouseDown = (e) => {
+    if (!image) return;
     const isPanningMode = activeTool === 'pan' || spacePressed;
     if (isPanningMode) {
       setIsMouseDown(true);
@@ -238,6 +254,7 @@ function App() {
   };
 
   const handleMouseMove = (e) => {
+    if (!image) return;
     // Update footer coordinates
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
@@ -272,6 +289,7 @@ function App() {
   };
 
   const handleWheel = (e) => {
+    if (!image) return;
     e.preventDefault();
     const zoomFactor = 1.1;
     let nextZoom = zoom;
@@ -585,7 +603,7 @@ function App() {
   };
 
   return (
-    <div className="workspace-grid" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+    <div className="workspace-grid" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       
       {/* 1. Header Bar */}
       <header className="cyber-header glass-panel">
@@ -761,7 +779,12 @@ function App() {
           ref={fileInputRef} 
           style={{ display: 'none' }} 
           accept="image/*" 
-          onChange={(e) => handleImageUpload(e.target.files[0])}
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              handleImageUpload(e.target.files[0]);
+            }
+            e.target.value = ''; // Reset value so same file can be uploaded again
+          }}
         />
 
         <div style={{ width: '24px', height: '1px', background: 'var(--border-cyber)', margin: '8px 0' }} />
