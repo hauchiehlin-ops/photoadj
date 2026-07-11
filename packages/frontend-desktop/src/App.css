@@ -182,3 +182,8 @@
     border-right-color: var(--border);
   }
 }
+
+.dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+

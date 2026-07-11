@@ -12,11 +12,14 @@ import {
   EyeOff, 
   ShieldAlert, 
   Sparkles, 
-  RotateCcw, 
-  Fingerprint, 
-  CheckCircle2, 
+  RotateCcw,
+  Fingerprint,
+  CheckCircle2,
   Info,
   ChevronRight,
+  Undo2,
+  Redo2,
+  ChevronDown,
   Maximize2,
   Scissors,
   Copy,
@@ -57,6 +60,16 @@ function App() {
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectStart, setSelectStart] = useState({ x: 0, y: 0 });
   const [clipboard, setClipboard] = useState(null);
+
+  // Undo / Redo history stack states
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // Spacebar panning state
+  const [spacePressed, setSpacePressed] = useState(false);
+
+  // Export menu dropdown visible state
+  const [showExportMenu, setShowExportMenu] = useState(false);
   
   // WebGL adjust parameters
   const [brightness, setBrightness] = useState(0.0);
@@ -82,7 +95,7 @@ function App() {
   const engineRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Initialize Canvas and WebGL
+  // Initialize Canvas, WebGL and keyboard shortcuts
   useEffect(() => {
     if (canvasRef.current && !engineRef.current) {
       try {
@@ -104,6 +117,33 @@ function App() {
         height: img.naturalHeight
       });
       fitImageToViewport(img.naturalWidth, img.naturalHeight);
+      
+      // Init history stack
+      setHistory([img]);
+      setHistoryIndex(0);
+    };
+
+    // Spacebar listener for temporary panning
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space') {
+        if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+          e.preventDefault();
+          setSpacePressed(true);
+        }
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space') {
+        setSpacePressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
 
@@ -142,6 +182,12 @@ function App() {
         resetAdjustments();
         setHasCutout(false);
         setHasRedacted(false);
+        setClipboard(null);
+        setSelectionRect(null);
+        
+        // Reset and init history
+        setHistory([img]);
+        setHistoryIndex(0);
       };
       img.src = event.target.result;
     };
@@ -177,7 +223,8 @@ function App() {
 
   // Mouse pan & marquee selection handling
   const handleMouseDown = (e) => {
-    if (activeTool === 'pan') {
+    const isPanningMode = activeTool === 'pan' || spacePressed;
+    if (isPanningMode) {
       setIsMouseDown(true);
       setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     } else if (activeTool === 'select' && canvasRef.current) {
@@ -199,7 +246,8 @@ function App() {
       setMouseCoords({ x, y });
     }
 
-    if (isMouseDown && activeTool === 'pan') {
+    const isPanningMode = activeTool === 'pan' || spacePressed;
+    if (isMouseDown && isPanningMode) {
       setPan({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y
@@ -243,6 +291,85 @@ function App() {
     ? calculatePixelsForPrint(currentPreset.widthMm, currentPreset.heightMm, dpi)
     : { widthPx: 0, heightPx: 0 };
 
+  // Push state to history
+  const pushHistory = (newImg) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(newImg);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  // Undo operation
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const prevIndex = historyIndex - 1;
+      const prevImg = history[prevIndex];
+      setHistoryIndex(prevIndex);
+      
+      setImage(prevImg);
+      setImageInfo({
+        ...imageInfo,
+        width: prevImg.naturalWidth,
+        height: prevImg.naturalHeight
+      });
+      setSelectionRect(null);
+      setAiStatus('已復原上一步操作');
+    }
+  };
+
+  // Redo operation
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const nextIndex = historyIndex + 1;
+      const nextImg = history[nextIndex];
+      setHistoryIndex(nextIndex);
+      
+      setImage(nextImg);
+      setImageInfo({
+        ...imageInfo,
+        width: nextImg.naturalWidth,
+        height: nextImg.naturalHeight
+      });
+      setSelectionRect(null);
+      setAiStatus('已重做下一步操作');
+    }
+  };
+
+  // Apply tone adjustments (Bake sliders)
+  const applyToneAdjustments = () => {
+    if (!canvasRef.current || !image) return;
+    try {
+      const bakedDataUrl = canvasRef.current.toDataURL('image/png');
+      const bakedImg = new Image();
+      bakedImg.onload = () => {
+        setBrightness(0.0);
+        setContrast(1.0);
+        setSaturation(1.0);
+        setExposure(0.0);
+        setImage(bakedImg);
+        pushHistory(bakedImg);
+        setAiStatus('色調調整已成功套用！');
+      };
+      bakedImg.src = bakedDataUrl;
+    } catch (err) {
+      console.error(err);
+      alert(`套用調色失敗: ${err.message}`);
+    }
+  };
+
+  // Close the active file
+  const closeFile = () => {
+    setImage(null);
+    setImageInfo({ name: '', width: 0, height: 0 });
+    setHistory([]);
+    setHistoryIndex(-1);
+    setClipboard(null);
+    setSelectionRect(null);
+    setHasCutout(false);
+    setHasRedacted(false);
+    setAiStatus('檔案已關閉。');
+  };
+
   // Image Editing - Copy selected region
   const handleCopy = () => {
     if (!selectionRect || selectionRect.w === 0 || selectionRect.h === 0 || !image) {
@@ -284,6 +411,7 @@ function App() {
       setImage(clearedImg);
       setSelectionRect(null);
       setAiStatus('已刪除選取區域！');
+      pushHistory(clearedImg);
     };
     clearedImg.src = tempCanvas.toDataURL();
   };
@@ -313,6 +441,7 @@ function App() {
         // Automatically select the pasted region
         setSelectionRect({ x: px, y: py, w: clipboard.w, h: clipboard.h });
         setAiStatus('已貼上影像區域！');
+        pushHistory(pastedImg);
       };
       pastedImg.src = tempCanvas.toDataURL();
     };
@@ -342,6 +471,7 @@ function App() {
           setImage(cutoutImg);
           setAiStatus('去背完成 (本地 WebGPU 加速)');
           setHasCutout(true);
+          pushHistory(cutoutImg);
         };
         cutoutImg.src = tempCanvas.toDataURL();
       }, 1000);
@@ -377,6 +507,7 @@ function App() {
         setImage(redactedImg);
         setAiStatus('模糊處理完成 (已遮蓋敏感個資)');
         setHasRedacted(true);
+        pushHistory(redactedImg);
       };
       redactedImg.src = tempCanvas.toDataURL();
     }, 1000);
@@ -472,9 +603,51 @@ function App() {
           </div>
         </div>
 
-        {/* Top middle info */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span className="cyber-btn mono-text" onClick={() => fitImageToViewport(imageInfo.width, imageInfo.height)}>
+        {/* Undo/Redo & Zoom controls & Top middle info */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Undo/Redo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px' }}>
+            <button 
+              className="cyber-btn" 
+              onClick={handleUndo} 
+              disabled={historyIndex <= 0}
+              title="復原 (Cmd+Z)"
+              style={{ padding: '6px 8px' }}
+            >
+              <Undo2 size={13} />
+            </button>
+            <button 
+              className="cyber-btn" 
+              onClick={handleRedo} 
+              disabled={historyIndex >= history.length - 1}
+              title="重做 (Cmd+Shift+Z)"
+              style={{ padding: '6px 8px' }}
+            >
+              <Redo2 size={13} />
+            </button>
+          </div>
+
+          {/* Zoom controls */}
+          {image && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '8px' }}>
+              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => setZoom(Math.max(zoom / 1.2, 0.1))} title="縮小">-</button>
+              <input 
+                type="range" 
+                min="0.1" 
+                max="8.0" 
+                step="0.05" 
+                value={zoom} 
+                onChange={(e) => setZoom(Number(e.target.value))} 
+                style={{ width: '70px', height: '3px', accentColor: 'var(--accent-cyan)' }}
+              />
+              <button className="cyber-btn" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => setZoom(Math.min(zoom * 1.2, 8.0))} title="放大">+</button>
+              <span className="mono-text" style={{ fontSize: '11px', minWidth: '35px', textAlign: 'right' }}>
+                {Math.round(zoom * 100)}%
+              </span>
+            </div>
+          )}
+
+          <span className="cyber-btn mono-text" onClick={() => image && fitImageToViewport(imageInfo.width, imageInfo.height)}>
             <Maximize2 size={14} /> 適應畫布
           </span>
           <button className="cyber-btn-purple" onClick={resetAdjustments}>
@@ -482,7 +655,7 @@ function App() {
           </button>
         </div>
 
-        {/* Print export action drawer */}
+        {/* Collapsed Export Dropdown Panel */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginRight: '6px' }}>
             <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>印刷輸出解析度</span>
@@ -497,15 +670,80 @@ function App() {
               <option value={300}>300 DPI (專業印刷)</option>
             </select>
           </div>
-          <button className="cyber-btn" onClick={() => triggerExport('PNG (sRGB)')}>
-            <Download size={14} /> 匯出 RGB
-          </button>
-          <button className="cyber-btn-purple" onClick={() => triggerExport('TIFF (CMYK)')}>
-            <Printer size={14} /> 匯出 TIFF
-          </button>
-          <button className="cyber-btn-purple glow-purple" onClick={() => triggerExport('PDF/X (CMYK)')}>
-            <FileText size={14} /> 匯出 PDF/X
-          </button>
+
+          <div style={{ position: 'relative' }}>
+            <button 
+              className="cyber-btn-purple glow-purple" 
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              style={{ gap: '6px', padding: '6px 12px' }}
+            >
+              <Download size={14} /> 另存與匯出 <ChevronDown size={14} />
+            </button>
+
+            {showExportMenu && (
+              <div 
+                className="glass-panel" 
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '8px',
+                  width: '320px',
+                  background: 'var(--bg-cyber-dark)',
+                  border: '1px solid var(--border-cyber)',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+                  zIndex: 100,
+                  padding: '8px'
+                }}
+              >
+                <div 
+                  className="dropdown-item" 
+                  onClick={() => { triggerExport('PNG (sRGB)'); setShowExportMenu(false); }}
+                  style={{ padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-primary)' }}>另存一般圖片 (PNG)</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>適用於網頁分享、一般螢幕看圖（sRGB 色彩空間）。</span>
+                </div>
+
+                <div style={{ height: '1px', background: 'var(--border-cyber)', margin: '4px 0' }} />
+
+                <div 
+                  className="dropdown-item" 
+                  onClick={() => { triggerExport('TIFF (CMYK)'); setShowExportMenu(false); }}
+                  style={{ padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--accent-cyan)' }}>另存普通印相檔 (TIFF)</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>適用於普通影印、沖印店印刷（CMYK 色彩空間）。</span>
+                </div>
+
+                <div style={{ height: '1px', background: 'var(--border-cyber)', margin: '4px 0' }} />
+
+                <div 
+                  className="dropdown-item" 
+                  onClick={() => { triggerExport('PDF/X (CMYK)'); setShowExportMenu(false); }}
+                  style={{ padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--accent-purple)' }}>另存專業 PDF/X 印刷檔</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>適用於印刷廠、大量出版印製（含 3mm 出血線與色彩宣告）。</span>
+                </div>
+
+                {image && (
+                  <>
+                    <div style={{ height: '1px', background: 'var(--border-cyber)', margin: '4px 0' }} />
+                    <div 
+                      className="dropdown-item" 
+                      onClick={() => { closeFile(); setShowExportMenu(false); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '2px', color: '#ff4d4d' }}
+                    >
+                      <span style={{ fontSize: '13px', fontWeight: 'bold' }}>關閉當前檔案 (Close File)</span>
+                      <span style={{ fontSize: '11px', color: '#ff4d4d', opacity: 0.8 }}>清除工作區並回到上傳主畫面。</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -584,6 +822,11 @@ function App() {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
+        style={{
+          cursor: (activeTool === 'pan' || spacePressed) 
+            ? (isMouseDown ? 'grabbing' : 'grab') 
+            : (activeTool === 'select' ? 'crosshair' : 'default')
+        }}
       >
         {isDragging && (
           <div className="drag-overlay active">
@@ -593,83 +836,94 @@ function App() {
           </div>
         )}
 
-        {/* Image wrapper with Zoom/Pan transforms */}
-        <div style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: 'center center',
-          position: 'relative',
-          transition: isMouseDown ? 'none' : 'transform 0.05s ease-out'
-        }}>
-          <canvas 
-            ref={canvasRef} 
-            style={{ 
-              display: 'block', 
-              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-              border: '1px solid rgba(255,255,255,0.1)'
-            }}
-          />
+        {!image ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', width: '100%' }}>
+            <Upload size={48} className="title-cyan" style={{ marginBottom: '16px', opacity: 0.7 }} />
+            <h3 style={{ fontSize: '18px', fontWeight: '500', color: 'var(--text-primary)' }}>請開啟或拖拽圖片至此處</h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>支援 PNG, JPEG, TIFF, PDF/X 等格式</p>
+            <button className="cyber-btn" onClick={() => fileInputRef.current?.click()} style={{ marginTop: '20px' }}>
+              <Upload size={14} /> 選擇檔案
+            </button>
+          </div>
+        ) : (
+          /* Image wrapper with Zoom/Pan transforms */
+          <div style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: 'center center',
+            position: 'relative',
+            transition: isMouseDown ? 'none' : 'transform 0.05s ease-out'
+          }}>
+            <canvas 
+              ref={canvasRef} 
+              style={{ 
+                display: 'block', 
+                boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                border: '1px solid rgba(255,255,255,0.1)'
+              }}
+            />
 
-          {/* Dashed marquee selection overlay */}
-          {activeTool === 'select' && selectionRect && (
-            <div style={{
-              position: 'absolute',
-              left: `${selectionRect.x}px`,
-              top: `${selectionRect.y}px`,
-              width: `${selectionRect.w}px`,
-              height: `${selectionRect.h}px`,
-              border: '2px dashed var(--accent-cyan)',
-              boxShadow: '0 0 10px rgba(0, 229, 255, 0.4)',
-              backgroundColor: 'rgba(0, 229, 255, 0.12)',
-              pointerEvents: 'none'
-            }} />
-          )}
+            {/* Dashed marquee selection overlay */}
+            {activeTool === 'select' && selectionRect && (
+              <div style={{
+                position: 'absolute',
+                left: `${selectionRect.x}px`,
+                top: `${selectionRect.y}px`,
+                width: `${selectionRect.w}px`,
+                height: `${selectionRect.h}px`,
+                border: '2px dashed var(--accent-cyan)',
+                boxShadow: '0 0 10px rgba(0, 229, 255, 0.4)',
+                backgroundColor: 'rgba(0, 229, 255, 0.12)',
+                pointerEvents: 'none'
+              }} />
+            )}
 
-          {/* Gamut Warning diagonal stripes mask */}
-          {showGamutWarning && (
-            <div className="gamut-diagonal" />
-          )}
+            {/* Gamut Warning diagonal stripes mask */}
+            {showGamutWarning && (
+              <div className="gamut-diagonal" />
+            )}
 
-          {/* 3mm Bleed safe zone bounding box overlay */}
-          {activeTool === 'crop' && showBleed && (
-            <div style={{
-              position: 'absolute',
-              top: '5%',
-              left: '5%',
-              right: '5%',
-              bottom: '5%',
-              border: '2px dashed var(--accent-cyan)',
-              pointerEvents: 'none'
-            }}>
-              <div className="bleed-line">
-                <span className="bleed-label mono-text">3mm 出血安全區 (Trim Boundary)</span>
+            {/* 3mm Bleed safe zone bounding box overlay */}
+            {activeTool === 'crop' && showBleed && (
+              <div style={{
+                position: 'absolute',
+                top: '5%',
+                left: '5%',
+                right: '5%',
+                bottom: '5%',
+                border: '2px dashed var(--accent-cyan)',
+                pointerEvents: 'none'
+              }}>
+                <div className="bleed-line">
+                  <span className="bleed-label mono-text">3mm 出血安全區 (Trim Boundary)</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* AI Redaction simulation layer */}
-          {hasRedacted && (
-            <div style={{
-              position: 'absolute',
-              top: '32%',
-              left: '25%',
-              width: '180px',
-              height: '40px',
-              backgroundColor: 'rgba(0,0,0,0.95)',
-              color: 'var(--accent-green)',
-              border: '1px solid var(--accent-green)',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '11px',
-              fontFamily: 'var(--font-mono)',
-              boxShadow: '0 0 10px rgba(0, 230, 118, 0.3)',
-              backdropFilter: 'blur(8px)'
-            }}>
-              <CheckCircle2 size={12} style={{ marginRight: '6px' }} /> OCR ID CONFIDENTIAL
-            </div>
-          )}
-        </div>
+            {/* AI Redaction simulation layer */}
+            {hasRedacted && (
+              <div style={{
+                position: 'absolute',
+                top: '32%',
+                left: '25%',
+                width: '180px',
+                height: '40px',
+                backgroundColor: 'rgba(0,0,0,0.95)',
+                color: 'var(--accent-green)',
+                border: '1px solid var(--accent-green)',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '11px',
+                fontFamily: 'var(--font-mono)',
+                boxShadow: '0 0 10px rgba(0, 230, 118, 0.3)',
+                backdropFilter: 'blur(8px)'
+              }}>
+                <CheckCircle2 size={12} style={{ marginRight: '6px' }} /> OCR ID CONFIDENTIAL
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Vector Signature Overlay floating preview */}
         {activeTool === 'signature' && (
@@ -813,6 +1067,15 @@ function App() {
                 className="slider-input" 
               />
             </div>
+
+            <button 
+              className="cyber-btn-purple glow-purple" 
+              onClick={applyToneAdjustments}
+              style={{ width: '100%', justifyContent: 'center', marginTop: '16px', padding: '10px' }}
+              disabled={brightness === 0.0 && contrast === 1.0 && saturation === 1.0 && exposure === 0.0}
+            >
+              <CheckCircle2 size={14} /> 套用色調變更 (Bake)
+            </button>
 
             <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-cyber)', paddingTop: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
