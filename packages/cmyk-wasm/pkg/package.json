@@ -1,0 +1,15 @@
+{
+  "name": "cmyk-wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "cmyk_wasm_bg.wasm",
+    "cmyk_wasm.js",
+    "cmyk_wasm.d.ts"
+  ],
+  "main": "cmyk_wasm.js",
+  "types": "cmyk_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
