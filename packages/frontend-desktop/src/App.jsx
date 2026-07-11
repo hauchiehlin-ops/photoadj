@@ -48,11 +48,13 @@ function App() {
   const [imageInfo, setImageInfo] = useState({ name: 'sample.png', width: 1200, height: 800 });
   const [dpi, setDpi] = useState(300);
   const [dpiPreset, setDpiPreset] = useState('300'); // '72', '150', '300', 'CUSTOM'
+  const [dpiInputText, setDpiInputText] = useState('300');
 
   const handleDpiPresetChange = (val) => {
     setDpiPreset(val);
     if (val !== 'CUSTOM') {
       setDpi(Number(val));
+      setDpiInputText(val);
     }
   };
   const [selectedPreset, setSelectedPreset] = useState('A4');
@@ -905,8 +907,19 @@ function App() {
                   type="number" 
                   min="10" 
                   max="2400" 
-                  value={dpi} 
-                  onChange={(e) => setDpi(Math.max(10, Math.min(2400, Number(e.target.value))))}
+                  value={dpiInputText} 
+                  onChange={(e) => {
+                    setDpiInputText(e.target.value);
+                    const val = Number(e.target.value);
+                    if (!isNaN(val) && val > 0) {
+                      setDpi(Math.min(2400, val));
+                    }
+                  }}
+                  onBlur={() => {
+                    const val = Math.max(10, Math.min(2400, Number(dpiInputText) || 300));
+                    setDpi(val);
+                    setDpiInputText(String(val));
+                  }}
                   style={{ width: '100%', background: 'var(--bg-cyber-dark)', border: '1px solid var(--border-cyber)', borderRadius: '4px', padding: '2px 4px', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', height: '20px' }}
                 />
               </div>
