@@ -61,6 +61,9 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [pastedLayer, setPastedLayer] = useState(null);
+  const [isDraggingPastedLayer, setIsDraggingPastedLayer] = useState(false);
+  const [pasteDragStart, setPasteDragStart] = useState({ x: 0, y: 0 });
 
   // Custom print preset dimension values
   const [customWidth, setCustomWidth] = useState(210);
@@ -318,6 +321,17 @@ function App() {
       setMouseCoords({ x, y });
     }
 
+    if (isDraggingPastedLayer && pastedLayer) {
+      const newX = e.clientX / zoom - pasteDragStart.x;
+      const newY = e.clientY / zoom - pasteDragStart.y;
+      setPastedLayer(prev => ({
+        ...prev,
+        x: newX,
+        y: newY
+      }));
+      return;
+    }
+
     const isPanningMode = activeTool === 'pan' || spacePressed;
     if (isMouseDown && isPanningMode) {
       setPan({
@@ -341,6 +355,7 @@ function App() {
   const handleMouseUp = () => {
     setIsMouseDown(false);
     setIsSelecting(false);
+    setIsDraggingPastedLayer(false);
   };
 
   const handleWheel = (e) => {
@@ -548,6 +563,31 @@ function App() {
       alert('剪貼簿目前為空，請先複製一個區域。');
       return;
     }
+    // Paste initially at the center of the image
+    const px = Math.round((imageInfo.width - clipboard.w) / 2);
+    const py = Math.round((imageInfo.height - clipboard.h) / 2);
+    
+    setPastedLayer({
+      dataUrl: clipboard.dataUrl,
+      x: px,
+      y: py,
+      w: clipboard.w,
+      h: clipboard.h
+    });
+    setAiStatus('已貼上懸浮影像！可用滑鼠在畫布上自由拖曳移動它，最後點選確認貼上。');
+  };
+
+  const handlePastedLayerMouseDown = (e) => {
+    e.stopPropagation(); // Prevent canvas panning while dragging pasted layer
+    setIsDraggingPastedLayer(true);
+    setPasteDragStart({
+      x: e.clientX / zoom - pastedLayer.x,
+      y: e.clientY / zoom - pastedLayer.y
+    });
+  };
+
+  const confirmPaste = () => {
+    if (!pastedLayer || !image) return;
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = imageInfo.width;
     tempCanvas.height = imageInfo.height;
@@ -556,22 +596,18 @@ function App() {
 
     const pasteImg = new Image();
     pasteImg.onload = () => {
-      // Paste at center of the image
-      const px = Math.round((imageInfo.width - clipboard.w) / 2);
-      const py = Math.round((imageInfo.height - clipboard.h) / 2);
-      tempCtx.drawImage(pasteImg, px, py);
+      tempCtx.drawImage(pasteImg, Math.round(pastedLayer.x), Math.round(pastedLayer.y), pastedLayer.w, pastedLayer.h);
 
-      const pastedImg = new Image();
-      pastedImg.onload = () => {
-        setImage(pastedImg);
-        // Automatically select the pasted region
-        setSelectionRect({ x: px, y: py, w: clipboard.w, h: clipboard.h });
-        setAiStatus('已貼上影像區域！');
-        pushHistory(pastedImg);
+      const combinedImg = new Image();
+      combinedImg.onload = () => {
+        setImage(combinedImg);
+        setPastedLayer(null);
+        setAiStatus('已完成貼上與合併影像！');
+        pushHistory(combinedImg);
       };
-      pastedImg.src = tempCanvas.toDataURL();
+      combinedImg.src = tempCanvas.toDataURL();
     };
-    pasteImg.src = clipboard.dataUrl;
+    pasteImg.src = pastedLayer.dataUrl;
   };
 
   // AI Feature - Background Cutout
@@ -1078,6 +1114,60 @@ function App() {
                 backdropFilter: 'blur(8px)'
               }}>
                 <CheckCircle2 size={12} style={{ marginRight: '6px' }} /> OCR ID CONFIDENTIAL
+              </div>
+            )}
+
+            {/* Floating pasted layer */}
+            {pastedLayer && (
+              <div 
+                style={{
+                  position: 'absolute',
+                  left: `${pastedLayer.x}px`,
+                  top: `${pastedLayer.y}px`,
+                  width: `${pastedLayer.w}px`,
+                  height: `${pastedLayer.h}px`,
+                  border: '2px dashed var(--accent-cyan)',
+                  boxShadow: '0 0 12px rgba(0, 229, 255, 0.5)',
+                  cursor: 'move',
+                  zIndex: 50,
+                  touchAction: 'none'
+                }}
+                onMouseDown={handlePastedLayerMouseDown}
+              >
+                <img 
+                  src={pastedLayer.dataUrl} 
+                  style={{ width: '100%', height: '100%', pointerEvents: 'none', display: 'block' }} 
+                  alt="pasted layer" 
+                />
+                <div style={{
+                  position: 'absolute',
+                  bottom: '-36px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  display: 'flex',
+                  gap: '6px',
+                  background: 'rgba(5, 7, 12, 0.95)',
+                  border: '1px solid var(--border-cyber)',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                }}>
+                  <button 
+                    className="cyber-btn-purple" 
+                    onClick={(e) => { e.stopPropagation(); confirmPaste(); }} 
+                    style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                  >
+                    確認貼上
+                  </button>
+                  <button 
+                    className="cyber-btn" 
+                    onClick={(e) => { e.stopPropagation(); setPastedLayer(null); }} 
+                    style={{ fontSize: '11px', padding: '2px 8px', height: '22px', color: '#ff4d4d' }}
+                  >
+                    取消
+                  </button>
+                </div>
               </div>
             )}
           </div>
