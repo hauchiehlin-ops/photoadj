@@ -198,7 +198,14 @@ function App() {
   // Update canvas sizing and engine image whenever imageSrc or adjustments change
   useEffect(() => {
     if (imageSrc && canvasRef.current) {
-      // Re-initialize WebGLEngine if canvas has remounted (context replaced)
+      // 1. Resize canvas synchronously if needed to prevent WebGL context lost inside async load
+      if (canvasRef.current.width !== imageInfo.width || canvasRef.current.height !== imageInfo.height) {
+        canvasRef.current.width = imageInfo.width;
+        canvasRef.current.height = imageInfo.height;
+        engineRef.current = null; // Reset engine since context got cleared on resize
+      }
+
+      // 2. Re-initialize WebGLEngine if needed
       if (!engineRef.current || engineRef.current.canvas !== canvasRef.current) {
         try {
           engineRef.current = new WebGLEngine(canvasRef.current);
@@ -207,12 +214,11 @@ function App() {
         }
       }
 
+      // 3. Load imageSrc and draw it via WebGL
       if (engineRef.current) {
         const img = new Image();
         img.onload = () => {
-          if (canvasRef.current && engineRef.current) {
-            canvasRef.current.width = imageInfo.width;
-            canvasRef.current.height = imageInfo.height;
+          if (engineRef.current) {
             engineRef.current.setImage(img);
             engineRef.current.updateAdjustments({ brightness, contrast, saturation, exposure });
           }
