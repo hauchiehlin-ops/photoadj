@@ -109,17 +109,8 @@ function App() {
   const engineRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Initialize Canvas, WebGL and keyboard shortcuts
+  // Load initial sample image exactly ONCE on mount
   useEffect(() => {
-    if (canvasRef.current && !engineRef.current) {
-      try {
-        engineRef.current = new WebGLEngine(canvasRef.current);
-      } catch (err) {
-        console.error("WebGL init error: ", err);
-      }
-    }
-
-    // Load initial sample image
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = DEFAULT_SAMPLE_IMAGE;
@@ -136,6 +127,10 @@ function App() {
       setHistory([DEFAULT_SAMPLE_IMAGE]);
       setHistoryIndex(0);
     };
+  }, []);
+
+  // Initialize keyboard shortcuts & Spacebar panning listener
+  useEffect(() => {
 
     // Keyboard shortcuts & Spacebar panning listener
     const handleKeyDown = (e) => {
